@@ -1,0 +1,21 @@
+
+Use a range of ports for this program from 4005-4013.
+If a process is running on port 4005, it is Member M1, and if it is running on port 4009, it is member M5, and so on.
+This way we don't have to handshake and register on a central server to know who to contact, as member M3 will
+always be on port 4007. This is a simple way to simulate the council as each member of the council in real life
+will have the phone number / email address of the other members.
+
+
+At the start of the program, each member will read their input arguments to find out who they are, and if they
+are going to be playing the role of a proposer or an acceptor.
+
+If they are a proposer, they will initialise a proposal number and send a prepare message to all other members.
+The proposal number will be a tuple of the proposer's port number and a counter that starts at 0. That looks like
+<port number, counter>. The counter will be incremented each time the proposer sends a prepare message.
+The proposer will then wait for a response from a majority of acceptors.
+When the proposer receives a response from a majority of acceptors, they will send an accept message to all
+acceptors with the value they want to propose
+The value is either chosen by the proposer at that moment, or it is a value that the proposer has received from
+
+If they are an acceptor they will wait for a prepare message and respond to the proposer with the highest
+proposal number they have seen while waiting.
