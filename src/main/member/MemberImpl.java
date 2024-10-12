@@ -6,7 +6,9 @@ import util.CouncilConnection;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,6 +24,8 @@ public class MemberImpl implements Member {
     private final boolean isQuirkMode; // Whether the member is in test mode or not.
 
     private Members president; // The president of the council. Only decided once the algorithm has run.
+
+    private boolean finish = false; // Whether we are confident the president has been decided or not.
 
     /* must be atomic since it can potentially be accessed concurrently when an acceptor
      how many proposals I have made / the highest proposal number I have seen. */
@@ -44,7 +48,7 @@ public class MemberImpl implements Member {
 
     @Override
     public void run() {
-        while (president == null) { // While the president has not been decided. We keep running.
+        while (!finish) { // While the president has not been decided. We keep running.
             if (isProposer) {
                 int retryCount = 0;
                 prepare();
@@ -56,14 +60,8 @@ public class MemberImpl implements Member {
             } else {
                 // Acceptors do nothing until they receive a prepare message.
                 listenForMessages();
-                if (president != null) {
-                    // spin once more to make sure that any proposers that are still running can be informed
-                    listenForMessages();
-                }
             }
-
         }
-        System.out.println(this.getMemberNumber() + " says the president of the council is " + president);
     }
 
 
@@ -76,19 +74,35 @@ public class MemberImpl implements Member {
     public void prepare() {
         ExecutorService executorService = Executors.newCachedThreadPool();
         proposalNumber.incrementAndGet(); // Increment the proposal number.
+        logger.info("Member " + this.getMemberNumber() + " is preparing for proposal number " + proposalNumber);
         // Use an atomic integer since it will be accessed by multiple threads.
         AtomicInteger promiseCount = new AtomicInteger();
+        ConcurrentHashMap<Members, Members> promiseValues = new ConcurrentHashMap<>();
         for (Members member : Members.values()) {
             if (member == this.getMemberNumber()) {
                 continue; // Skip myself.
             }
-            executorService.submit(() -> sendPrepareMessageToMember(member, promiseCount));
+            executorService.submit(() -> sendPrepareMessageToMember(member, promiseCount, promiseValues));
         }
         executorService.shutdown();
         while (!executorService.isTerminated()) {
             Thread.onSpinWait(); // Wait for all threads to finish.
         }
         if (promiseCount.get() > Members.values().length / 2) {
+            /* if we get a majority of promises with a value, we can assume that value is the president
+                and that we can safely exit the algorithm. */
+            if (promiseValues.size() > Math.floor((double) Members.values().length / 2)) {
+                // check if we have a majority of promises with a value
+                if (checkPromisesForMajority(promiseValues)) {
+                    logger.info("Member " + this.getMemberNumber() +
+                            " received a majority of promises with value " +
+                            president + " for proposal number " + proposalNumber);
+                    System.out.println("Member " + this.getMemberNumber() +
+                            " says " + this.president + " is the president.");
+                    this.finish = true; // we are confident the president has been decided.
+                    return; // we can exit the algorithm.
+                }
+            }
             logger.info("Member " + this.getMemberNumber() +
                     " received enough promises to proceed to ACCEPT REQUEST phase for proposal number " +
                     proposalNumber);
@@ -105,6 +119,31 @@ public class MemberImpl implements Member {
     }
 
 
+    private boolean checkPromisesForMajority(ConcurrentHashMap<Members, Members> promiseValues) {
+        int[] votes = new int[Members.values().length];
+        for (Members vote : promiseValues.values()) {
+            votes[Members.getMemberNumber(vote) - 1]++;
+        }
+        int maxVotes = 0;
+        Members voteLeader = null;
+        for (int i = 0; i < votes.length; i++) {
+            if (votes[i] > maxVotes) {
+                maxVotes = votes[i];
+                voteLeader = Members.getMember(i + 1);
+            }
+        }
+        if (voteLeader == null) {
+            return false;
+        }
+        if (maxVotes > Math.floor((double) Members.values().length / 2)) {
+            president = voteLeader;
+            decide(president);
+            return true;
+        }
+        return false;
+    }
+
+
     /**
      * Sends a prepare message to the given member of the council. Creates a socket and attempts to connect
      * to the member on the port obtained from the member enum. If the connection is successful, a prepare message
@@ -115,7 +154,8 @@ public class MemberImpl implements Member {
      * @param member       : Members : the member to send the prepare message to.
      * @param promiseCount : AtomicInteger : the promise count to increment if the member responds with a promise.
      */
-    private void sendPrepareMessageToMember(Members member, AtomicInteger promiseCount) {
+    private void sendPrepareMessageToMember(Members member, AtomicInteger promiseCount,
+                                            ConcurrentHashMap<Members, Members> promiseValues) {
         try (Socket socket = CouncilConnection.getConnection(HOST, member.getPort())) {
             // Send the prepare message.
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
@@ -129,10 +169,11 @@ public class MemberImpl implements Member {
                         // if we get a higher proposal number, or the same proposal number,
                         proposalNumber.set(response.getProposalNum()); // there could already be a president
                         if (response.getValue() != null) {
-                            logger.info("Member " + this.getMemberNumber() + " received a promise from " +
+                            logger.fine("Member " + this.getMemberNumber() + " received a promise from " +
                                     member + " for proposal number " + proposalNumber +
                                     " with value " + response.getValue());
                             this.president = response.getValue();
+                            promiseValues.put(member, response.getValue());
                         }
                     }
                     promiseCount.incrementAndGet(); // Increment the promise count.
@@ -193,11 +234,19 @@ public class MemberImpl implements Member {
                 ServerSocket listenSocket = new ServerSocket(this.getMemberNumber().getPort());
                 ExecutorService executorService = Executors.newCachedThreadPool()
         ) {
+            int attemptsWithoutMessage = 0; // Keep track of how many times we have not received a message.
             listenSocket.setSoTimeout(10000); // Set a timeout of 10 seconds.
-            while (this.president == null) {
+            while (attemptsWithoutMessage <= 3) { // If we haven't received a message in 30 seconds, we will shut down.
+                try {
                 Socket clientSocket = listenSocket.accept(); // Wait for a connection.
                 executorService.submit(() -> handleMessages(clientSocket));
+                attemptsWithoutMessage = 0; // Reset the number of attempts if we receive a message.
+                } catch (SocketTimeoutException e) {
+                    attemptsWithoutMessage++; // increment the number of attempts on timeout.
+                }
             }
+            System.out.println("Member " + this.getMemberNumber() + " says " + this.president + " is the president.");
+            this.finish = true; // we are confident the president has been decided, so we can exit the algorithm.
         } catch (IOException e) {
             logger.fine("Member " + this.getMemberNumber() +
                     "'s Listening Server shut down. " + e.getMessage());

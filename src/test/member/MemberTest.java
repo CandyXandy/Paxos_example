@@ -2,7 +2,6 @@ package member;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import util.CouncilConnection;
 
 import java.io.*;
 import java.net.ServerSocket;
@@ -15,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class MemberTest {
     private final static int DEFAULT_TIMEOUT = 10000; // 10 seconds timeout
-    private final static String HOST = "localhost";
 
     /**
      * Test that the member number is forced to be between 1 and 9.
@@ -125,7 +123,7 @@ public class MemberTest {
         mem.handleMessages(socket);
         Mockito.verify(socket).getInputStream();
         // verify the mocked socket is sending the correct message
-        assertEquals("PREPARE-OK 4005:1 _", out.toString());
+        assertEquals("PREPARE-OK 4005:1 _".strip(), out.toString().strip());
     }
 
 
@@ -164,14 +162,14 @@ public class MemberTest {
         for (Member member : members) {
             votes[Members.getMemberNumber(member.whoIsPresident())]++;
         }
-        // check that a majority have chosen the same president.
+        // check that everyone voted for the same president
         int maxVotes = 0;
         for (int vote : votes) {
             if (vote > maxVotes) {
                 maxVotes = vote;
             }
         }
-        assertTrue(maxVotes > members.size() / 2);
+        assertEquals(maxVotes, members.size());
     }
 
 
