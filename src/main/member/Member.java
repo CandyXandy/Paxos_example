@@ -1,7 +1,8 @@
 package member;
 
-import java.io.BufferedReader;
-import java.io.PrintWriter;
+import message.Message;
+
+import java.io.IOException;
 import java.net.Socket;
 
 /**
@@ -12,14 +13,18 @@ import java.net.Socket;
  * the methods according to their specific behavior. Any member may become council president.
  */
 public interface Member {
-    public void run(); // runs the member.
-    public void prepare(); // creates a prepare message to broadcast to all councillors.
+    void run(); // runs the member.
+    void prepare(); // creates a prepare message to broadcast to all councillors.
     Members whoToVoteFor(); // returns the member this member would like to vote for.
-    public void listenForMessages(); // listens for messages from other councillors.
-    public void handleMessages(Socket clientSocket); // handles messages from other councillors.
-    public void promise(Members sender, int proposalNum, BufferedReader in, PrintWriter out); // sends a 'prepare-ok' message to the proposer.
-    public void acceptRequest(Members toVoteFor, int proposalNum); // broadcasts an 'accept-request' message to the majority.
-    public void accept(int proposalNum); // sends an 'accept-ok' message to the proposer.
-    public void reject(int proposalNum); // sends an 'accept-reject' message to the proposer.
-    public void decide(int proposalNum); // broadcasts a 'decide' message to all councillors.
+    void listenForMessages(); // listens for messages from other councillors.
+    void handleMessages(Socket clientSocket); // handles messages from other councillors.
+    void promise(Message message, Socket clientSocket) throws IOException; // sends a 'prepare-ok' message to the proposer.
+    void acceptRequest(Members toVoteFor); // broadcasts an 'accept-request' message to the majority.
+    void accept(Message message, Socket clientSocket) throws IOException; // sends an 'accept-ok' message to the proposer.
+    void reject(Message message, Socket clientSocket) throws IOException; // sends an 'accept-reject' message to the proposer.
+    void decide(Members president); // broadcasts a 'decide' message to all councillors.
+
+    void setProposer(boolean proposer); // sets whether this member is a proposer.
+
+    Members whoIsPresident(); // returns the elected president.
 }

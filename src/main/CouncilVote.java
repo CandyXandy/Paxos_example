@@ -89,23 +89,7 @@ public class CouncilVote {
      */
     private static void createAndRunMember(int memberNumber, boolean isProposer) {
         logger.info("Creating Member " + memberNumber + " as " + (isProposer ? "Proposer" : "Acceptor"));
-        switch(memberNumber) {
-            case 1:
-                Member member = new MemberM1(memberNumber, isProposer);
-                member.run();
-                break;
-            case 2:
-                Member member2 = new MemberM2(memberNumber, isProposer);
-                member2.run();
-                break;
-            case 3:
-                Member member3 = new MemberM3(memberNumber, isProposer);
-                member3.run();
-                break;
-            default:
-                Member memberDefault = new MemberDefault(memberNumber, isProposer);
-                memberDefault.run();
-                break;
-        }
+        Member member = new MemberImpl(memberNumber, isProposer, false);
+        member.run();
     }
 }
