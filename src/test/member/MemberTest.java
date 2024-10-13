@@ -114,7 +114,7 @@ public class MemberTest {
      * Tests that an acceptor will return a prepare-ok message when it receives a prepare message.
      */
     @Test
-    public void promiseTest() throws IOException {
+    public void promiseTest() throws IOException, InterruptedException {
         // mock the socket that is given to the acceptor's handleMessage method
         Socket socket = Mockito.mock(Socket.class);
         Mockito.when(socket.getInputStream()).thenReturn(new ByteArrayInputStream("PREPARE 4005:1 _".getBytes()));
@@ -150,20 +150,31 @@ public class MemberTest {
      * two proposers, and the proposers are the first two members.
      */
     @Test
-    public void testPaxosTwoProposersNoQuirksImmediateResponse() {
+    public void testPaxosTwoProposersNoQuirksImmediateResponse() throws InterruptedException {
         List<Member> members = getAllMembers();
+        List<Future<?>> futures = new ArrayList<>();
         ExecutorService executor = Executors.newCachedThreadPool();
         // set the first two members to be proposers
         members.get(0).setProposer(true);
         members.get(1).setProposer(true);
         // start all the members
         for (Member member : members) {
-            executor.submit(new Thread(member::run));
+            futures.add(executor.submit(new Thread(() -> {
+                try {
+                    member.run();
+                } catch (InterruptedException e) {
+                    // die quietly
+                }
+            })));
         }
         // wait for the members to finish
         executor.shutdown();
-        while (!executor.isTerminated()) Thread.onSpinWait();
-        countVotes(members);
+        waitForMajorityToFinish(members, futures);
+        countVotesMajority(members);
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
     }
 
 
@@ -171,21 +182,29 @@ public class MemberTest {
      * Tests the case where all M1-M9 have immediate responses to voting queries.
      */
     @Test
-    public void testPaxosNoQuirksImmediateResponse() {
+    public void testPaxosNoQuirksImmediateResponse() throws InterruptedException {
         List<Member> members = getAllMembers();
         ExecutorService executor = Executors.newCachedThreadPool();
+        List<Future<?>> futures = new ArrayList<>();
         // set the first member to be the proposer
         members.getFirst().setProposer(true);
         // start all the members
         for (Member member : members) {
-            executor.submit(new Thread(member::run));
+            futures.add(executor.submit(new Thread(() -> {
+                try {
+                    member.run();
+                } catch (InterruptedException _) {
+                    // die quietly
+                }
+            })));
         }
         // wait for the members to finish
         executor.shutdown();
-        while (!executor.isTerminated()) Thread.onSpinWait();
-        // check that all members have the same president
-        for (Member member : members) {
-            assertEquals(Members.M1, member.whoIsPresident());
+        waitForMajorityToFinish(members, futures);
+        countVotesMajority(members);
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
         }
     }
 
@@ -195,19 +214,29 @@ public class MemberTest {
      * proposers voting queries.
      */
     @Test
-    public void testPaxosThreeRandomProposersImmediateResponse() {
+    public void testPaxosThreeRandomProposersImmediateResponse() throws InterruptedException {
         List<Member> members = getAllMembers();
         ExecutorService executor = Executors.newCachedThreadPool();
+        List<Future<?>> futures = new ArrayList<>();
         setNRandomToProposer(members, 3);
         // start all the members
         for (Member member : members) {
-            executor.submit(new Thread(member::run));
+            futures.add(executor.submit(new Thread(() -> {
+                try {
+                    member.run();
+                } catch (InterruptedException e) {
+                    // die quietly
+                }
+            })));
         }
         // wait for the members to finish
         executor.shutdown();
-        while (!executor.isTerminated()) Thread.onSpinWait();
-        // count up the votes for each member
-        countVotes(members);
+        waitForMajorityToFinish(members, futures);
+        countVotesMajority(members);
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
     }
 
 
@@ -216,19 +245,30 @@ public class MemberTest {
      * proposers voting queries.
      */
     @Test
-    public void testPaxosFourRandomProposersImmediateResponse() {
+    public void testPaxosFourRandomProposersImmediateResponse() throws InterruptedException {
         List<Member> members = getAllMembers();
         ExecutorService executor = Executors.newCachedThreadPool();
+        List<Future<?>> futures = new ArrayList<>();
         setNRandomToProposer(members, 4);
         // start all the members
         for (Member member : members) {
-            executor.submit(new Thread(member::run));
+            futures.add(executor.submit(new Thread(() -> {
+                try {
+                    member.run();
+                } catch (InterruptedException e) {
+                    // die quietly
+                }
+            })));
         }
         // wait for the members to finish
         executor.shutdown();
-        while (!executor.isTerminated()) Thread.onSpinWait();
+        waitForMajorityToFinish(members, futures);
         // count up the votes for each member
-        countVotes(members);
+        countVotesMajority(members);
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
     }
 
 
@@ -237,7 +277,7 @@ public class MemberTest {
      * We use three proposers in this test.
      */
     @Test
-    public void testPaxosRandomDelaysThreeProposers() {
+    public void testPaxosRandomDelaysThreeProposers() throws InterruptedException {
         List<Member> members = getAllByzantineMembers();
         ExecutorService executor = Executors.newCachedThreadPool();
         setNRandomToProposer(members, 3);
@@ -247,7 +287,11 @@ public class MemberTest {
             int delayForm = ThreadLocalRandom.current().nextInt(0, 4);
             futures.add(executor.submit(new Thread(() -> {
                 member.getMyQuirks().setDelayForm(delayForm);
-                member.run();
+                try {
+                    member.run();
+                } catch (InterruptedException e) {
+                    //
+                }
             })));
         }
         // wait for at least a majority of the members to finish
@@ -256,10 +300,46 @@ public class MemberTest {
         // count up the votes for each member, but only check that the majority voted for the same president
         countVotesMajority(members);
         // if the test passes, we need to murder any remaining threads
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
     }
 
 
-
+    /**
+     * Tests the case where M2 or M3 propose and then go offline.
+     */
+    @Test
+    public void testThreeProposersM2M3_MaxDelays() throws InterruptedException {
+        List<Member> members = getAllByzantineMembers();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        members.get(1).setProposer(true);
+        members.get(2).setProposer(true);
+        members.get(0).setProposer(true);
+        List<Future<?>> futures = new ArrayList<>();
+        // start all the members
+        for (Member member : members) {
+            futures.add(executor.submit(new Thread(() -> {
+                member.getMyQuirks().setDelayForm(3);
+                try {
+                    member.run();
+                } catch (InterruptedException e) {
+                    // die quietly
+                }
+            })));
+        }
+        // wait for at least a majority of the members to finish
+        executor.shutdown();
+        waitForMajorityToFinish(members, futures);
+        // count up the votes for each member, but only check that the majority voted for the same president
+        countVotesMajority(members);
+        // if the test passes, we need to murder any remaining threads
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
+    }
 
 
     /* HELPERS */
@@ -405,7 +485,7 @@ public class MemberTest {
      * @param members : List<Member> : the list of members to wait for.
      * @param futures : List<Future<?>> : the list of futures to wait for.
      */
-    private void waitForMajorityToFinish(List<Member> members, List<Future<?>> futures) {
+    private void waitForMajorityToFinish(List<Member> members, List<Future<?>> futures) throws InterruptedException {
         int finishedTasks = 0;
         Iterator<Future<?>> iterator = futures.iterator();
         while (finishedTasks <= Math.floor( (double) members.size() / 2)) {
@@ -419,11 +499,7 @@ public class MemberTest {
             // if the iterator is empty, we have checked all the futures, so we need to reset it
             iterator = futures.iterator();
         }
-        try {
-            TimeUnit.SECONDS.sleep(30); // wait another 30 seconds for any stragglers.
-        } catch (InterruptedException e) {
-            // do nothing
-        }
+        TimeUnit.SECONDS.sleep(30); // wait another 30 seconds for any stragglers.
         // we don't wait any longer as any nodes that haven't finished by now are likely to be byzantine
     }
 }

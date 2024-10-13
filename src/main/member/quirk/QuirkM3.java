@@ -1,6 +1,7 @@
 package member.quirk;
 
-import java.net.Socket;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 
@@ -15,35 +16,23 @@ public class QuirkM3 implements Quirk {
 
 
     /**
-     * M3 will delay their response time by up to 30 seconds, depending on the delay form.
+     * M3 will delay their response time by up to 10 seconds, depending on the delay form.
      */
-    private void delay() {
+    private void delay() throws InterruptedException {
         switch (delayForm) {
             case 0:
                 return;
             case 1:
-                try {
-                    // sleep between 1 and 10 seconds
-                    Thread.sleep((long) (Math.random() * 9000) + 1000);
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                // sleep between 0 and 2 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(0, 3));
                 break;
             case 2:
-                try {
-                    // sleep between 10 and 20 seconds
-                    Thread.sleep((long) (Math.random() * 10000) + 10000);
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                // sleep between 2 and 5 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(2, 6));
                 break;
             case 3:
-                try {
-                    // sleep between 20 and 30 seconds
-                    Thread.sleep((long) (Math.random() * 10000) + 20000);
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                // sleep between 5 and 10 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(5, 11));
                 break;
         }
     }
@@ -52,9 +41,9 @@ public class QuirkM3 implements Quirk {
     /**
      * Sets the delay form for M3. M3 has 4 different delay forms:
      * 0: No delay - no delay will be applied.
-     * 1: Small delay - a delay of between 1 and 10 seconds.
-     * 2: Medium delay - a delay of between 10 and 20 seconds.
-     * 3: Large delay - a delay of between 20 and 30 seconds.
+     * 1: Small delay - a delay of between 0 and 2 seconds
+     * 2: Medium delay - a delay of between 2 and 5 seconds.
+     * 3: Large delay - a delay of between 5 and 10 seconds.
      *
      * @param delayForm : int : the delay form to set for M3.
      */
@@ -72,11 +61,9 @@ public class QuirkM3 implements Quirk {
      * they will delay their response time.
      * If the dice roll is 4 or 5, they will not delay their response time.
      * If the dice roll is 6, they will go camping for a minute.
-     *
-     * @param connection : Socket : the connection to the member.
      */
     @Override
-    public void rollDice(Socket connection) {
+    public void rollDice() throws InterruptedException {
         int diceRoll = (int) (Math.random() * 6) + 1;
         switch (diceRoll) {
             case 1:
@@ -96,15 +83,11 @@ public class QuirkM3 implements Quirk {
 
 
     /**
-     * M3 will go camping for a minute, where they will be completely unresponsive for a minute.
+     * M3 will go camping for 20 seconds, where they will be completely unresponsive.
      */
-    private void goCamping() {
+    private void goCamping() throws InterruptedException {
         Logger.getLogger(QuirkM3.class.getName()).info("M3 is going camping.");
-        try {
-            Thread.sleep(60000); // M3 will go camping for a minute.
-        } catch (InterruptedException e) {
-            // do nothing
-        }
+        TimeUnit.SECONDS.sleep(20);
         Logger.getLogger(QuirkM3.class.getName()).info("M3 has returned from camping.");
     }
 }

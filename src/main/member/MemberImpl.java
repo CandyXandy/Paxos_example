@@ -1,7 +1,6 @@
 package member;
 
 import member.quirk.Quirk;
-import member.quirk.QuirkM1;
 import member.quirk.QuirkM2;
 import member.quirk.QuirkM3;
 import member.quirk.QuirkOther;
@@ -79,8 +78,7 @@ public class MemberImpl implements Member {
 
     /**
      * Begin participating in the paxos algorithm, if the member is a proposer, they will try sending a prepare
-     * message to acceptors, and exponentially backing off when they fail to avoid quickly increasing their
-     * proposal number and 'gaming' the algorithm.
+     * message to acceptors.
      * If the member is an acceptor, they just listen out for messages until they're sure
      * a president has been decided. This will only happen if they have a value for president, and they haven't
      * received any messages from a proposer in a while.
@@ -92,7 +90,7 @@ public class MemberImpl implements Member {
      * hasn't received a message in a long time, and they have a value for president.
      */
     @Override
-    public void run() {
+    public void run() throws InterruptedException {
         int retryCount = 0;
         while (!finish) { // Unless we're absolutely confident everyone has decided on a president, keep going.
             if (isProposer) {
@@ -103,11 +101,10 @@ public class MemberImpl implements Member {
                         logger.info("Member " + this.getMemberNumber() + " has tried 10 times and failed to" +
                                 " get enough votes, becoming an acceptor.");
                         this.setProposer(false); // I will become an acceptor.
+                        retryCount = 0; // reset the retry count.
                         continue;
                     }
-                    // exponential backoff if we don't get enough promises
                     retryCount++;
-                    backOff(retryCount);
                 }
             } else {
                 // Acceptors do nothing until they receive a prepare message.
@@ -127,7 +124,7 @@ public class MemberImpl implements Member {
      * If we don't receive enough promises, we will try again with a higher proposal number.
      */
     @Override
-    public void prepare() {
+    public void prepare() throws InterruptedException {
         ExecutorService executorService = Executors.newCachedThreadPool();
         proposalNumber.incrementAndGet(); // Increment the proposal number.
         logger.info("Member " + this.getMemberNumber() + " is preparing for proposal number " + proposalNumber);
@@ -147,7 +144,7 @@ public class MemberImpl implements Member {
         if (promiseCount.get() > Members.values().length / 2) { // if we have a majority of promises
 
             // if we got enough promises with a value to potentially form a majority
-            if (promiseValues.size() > Math.floor((double) Members.values().length / 2)) {
+            if (promiseValues.size() > Members.values().length / 2) {
                 // check if we have a majority of promises with the same value
                 if (checkPromisesForMajority(promiseValues)) {
                     // log the president to the info level
@@ -173,6 +170,9 @@ public class MemberImpl implements Member {
             }
             logger.info("Member " + this.getMemberNumber() + " has voted for " + presidentVote +
                     " in proposal number " + proposalNumber);
+            if (myQuirks != null) { // if in quirk mode
+                myQuirks.rollDice(); // roll the dice to determine the member's behavior.
+            }
             acceptRequest(presidentVote); // proceed to the accept-request phase.
         }
         // else, we didn't get enough promises, so we will try again with a higher proposal number.
@@ -231,9 +231,6 @@ public class MemberImpl implements Member {
             // Send the prepare message.
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             out.println("PREPARE " + this.getMemberNumber().getPort() + ":" + proposalNumber + " _");
-            if (myQuirks != null) {
-                myQuirks.rollDice(socket); // roll the dice to determine the member's behavior.
-            }
             // wait for the promise
             Message response = CouncilConnection.readMessage(socket);
             if (response.message().startsWith("PREPARE-OK")) {
@@ -310,14 +307,20 @@ public class MemberImpl implements Member {
     public void listenForMessages() {
         try (
                 ServerSocket listenSocket = new ServerSocket(this.getMemberNumber().getPort());
-                ExecutorService executorService = Executors.newCachedThreadPool()
+                ExecutorService executorService = Executors.newSingleThreadExecutor()
         ) {
             int attemptsWithoutMessage = 0; // Keep track of how many times we have not received a message.
-            listenSocket.setSoTimeout(new Random().nextInt(1, 4) * 10000); // timeout between 10 and 30 sec
+            listenSocket.setSoTimeout(new Random().nextInt(5, 16) * 1000); // timeout between 5 and 15 sec
             while (attemptsWithoutMessage <= 3) { // If we haven't received a message in 3 attempts, we will shut down.
                 try {
                 Socket clientSocket = listenSocket.accept(); // Wait for a connection.
-                executorService.submit(() -> handleMessages(clientSocket));
+                executorService.submit(() -> {
+                    try {
+                        handleMessages(clientSocket);
+                    } catch (InterruptedException _) {
+                        //
+                    }
+                });
                 attemptsWithoutMessage = 0; // Reset the number of attempts if we receive a message.
                 } catch (SocketTimeoutException e) {
                     attemptsWithoutMessage++; // increment the number of attempts on timeout.
@@ -349,10 +352,10 @@ public class MemberImpl implements Member {
      * @param clientSocket : Socket : The socket that the message was received on.
      */
     @Override
-    public void handleMessages(Socket clientSocket) {
+    public void handleMessages(Socket clientSocket) throws InterruptedException {
         try {
             if (myQuirks != null) { // if in quirk mode
-                myQuirks.rollDice(clientSocket); // roll the dice to determine the member's behavior.
+                myQuirks.rollDice(); // roll the dice to determine the member's behavior.
             }
             Message message = CouncilConnection.readMessage(clientSocket);
             switch (message.message()) {
@@ -421,7 +424,7 @@ public class MemberImpl implements Member {
      * @param toVoteFor : Members : the member that this member would like to vote for.
      */
     @Override
-    public void acceptRequest(Members toVoteFor) {
+    public void acceptRequest(Members toVoteFor) throws InterruptedException {
         ExecutorService executorService = Executors.newCachedThreadPool();
         AtomicInteger acceptCount = new AtomicInteger();
         for (Members member : Members.values()) {
@@ -438,6 +441,9 @@ public class MemberImpl implements Member {
             logger.info("Member " + this.getMemberNumber() + " received enough accepts to decide on " +
                     toVoteFor + " for proposal number " + proposalNumber);
             // We have a majority, so we can decide.
+            if (myQuirks != null) { // if in quirk mode
+                myQuirks.rollDice(); // roll the dice to determine the member's behavior.
+            }
             decide(toVoteFor);
         } // else, we didn't get enough accepts, so we will try again with a higher proposal number.
     }
@@ -460,9 +466,6 @@ public class MemberImpl implements Member {
             // send the accept request
             out.println("ACCEPT-REQUEST " + this.getMemberNumber().getPort() + ":" + proposalNumber.get() + " " +
                     Members.getMemberNumber(toVoteFor));
-            if (myQuirks != null) { // if in quirk mode
-                myQuirks.rollDice(socket); // roll the dice to determine the member's behavior.
-            }
             // read the response
             Message response = CouncilConnection.readMessage(socket);
             if (response.message().startsWith("ACCEPT-OK")) {
@@ -542,7 +545,6 @@ public class MemberImpl implements Member {
         while (!executorService.isTerminated()) {
             Thread.onSpinWait(); // Wait for all threads to finish.
         }
-        this.president = president;
     }
 
 
@@ -555,9 +557,6 @@ public class MemberImpl implements Member {
      */
     private void sendDecideMessageToMember(Members member, Members president) {
         try (Socket socket = CouncilConnection.getConnection(HOST, member.getPort())) {
-            if (myQuirks != null) { // if in quirk mode
-                myQuirks.rollDice(socket); // roll the dice to determine the member's behavior.
-            }
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             // DECIDE port:proposalNumber value
             out.println("DECIDE " + this.getMemberNumber().getPort() + ":" + this.proposalNumber.get() + " " +
@@ -571,33 +570,13 @@ public class MemberImpl implements Member {
 
 
     /**
-     * Sleeps for a random amount of time depending on the number of retries.
-     * This allows us to exponentially back off when retrying, so we don't flood the network when acceptors
-     * are busy and reject our proposals. Without this, a proposer could very quickly
-     * increase the proposal number and 'cheese' the algorithm.
-     *
-     * @param retryCount : int : the number of retries that have been attempted.
-     */
-    private void backOff(int retryCount) {
-        long backOffTime = (long) (Math.pow(2, retryCount) * 1000) + new Random().nextInt((100));
-        try {
-            Thread.sleep(backOffTime);
-        } catch (InterruptedException e) {
-            logger.fine("Member " + this.getMemberNumber() +
-                    " was interrupted while sleeping. " + e.getMessage());
-            Thread.currentThread().interrupt();
-        }
-    }
-
-
-    /**
      * Chooses which quirks the member has based on their member number.
      *
      * @return : Quirk : the quirks of the member.
      */
     private Quirk whoseQuirks() {
         return switch (this.getMemberNumber()) {
-            case M1 -> new QuirkM1();
+            case M1 -> null; // M1 has no quirks.
             case M2 -> new QuirkM2();
             case M3 -> new QuirkM3();
             default -> new QuirkOther();

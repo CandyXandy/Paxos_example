@@ -37,8 +37,8 @@ public class CouncilConnection {
         long startTime = System.currentTimeMillis(); // fetch starting time
         Socket socket = null;
         boolean connected = false;
-        // try for 10 seconds before giving up
-        while (!connected && System.currentTimeMillis() - startTime < 10000) {
+        // try for 5 seconds
+        while (!connected && System.currentTimeMillis() - startTime < 5000) {
             try {
                 socket = new Socket(serverName, port);
                 connected = true;
@@ -77,8 +77,8 @@ public class CouncilConnection {
                 // die quietly
            }
         }).start();
-        // wait for the message to be read or time out after 10 seconds
-        while (message.get() == null && System.currentTimeMillis() - startTime < 10000) {
+        // wait for the message to be read or time out after 5 seconds
+        while (message.get() == null && (System.currentTimeMillis() - startTime) < 5000) {
             Thread.onSpinWait();
         }
         if (message.get() == null) {

@@ -1,8 +1,5 @@
 package member.quirk;
 
-import java.io.IOException;
-import java.net.Socket;
-
 /**
  * This interface defines the base methods that any member of the Adelaide Suburbs Council may invoke
  * when they are acting according to their 'quirks'. A quirk is a unique behavior that a member may
@@ -12,5 +9,5 @@ import java.net.Socket;
  */
 public interface Quirk {
     void setDelayForm(int delayForm); // switches between no, small, large, and unresponsive delay.
-    void rollDice(Socket connection) throws IOException; // Rolls a die to determine the member's behavior.
+    void rollDice() throws InterruptedException; // Rolls a die to determine the member's behavior.
 }

@@ -34,10 +34,25 @@ A number of tests can be found in the test folder inside the main folder.
 ```
 
 They test the different scenarios as described in the assignment description.
+**Please be aware that a single run of the paxos algorithm may take as long as 10 minutes.
+Especially when a node is behaving arbitrarily and repeatedly drops connection to other nodes**
+Please be patient! Even if it seems like nothing is happening, the nodes are still running the
+algorithm, albeit arbitrarily most likely.
+
 
 ## Compiling and Running
-Please build the project using IntelliJ IDEA.
+Please build the project using IntelliJ IDEA or another IDE.
 The project can be run by running the main method in 
 ```
-./src/main/java/member.CouncilVote.java
+./src/main/CouncilVote.java
+```
+The input arguments are as follows:
+```
+args[0] is the member number (1-9)
+args[1] determines if this process is a proposer or an acceptor.
+args[2] is if this process is to run in test mode, that is, without each process having quirks.
+Any value passed in args[2] will be considered true.
+quirks: quirks are where the process will behave according to a set of pre-defined quirks.
+For example, a process may be incredibly responsive, unreliable, or slow. This is to allow
+for testing of scenarios such as processes acting according to their quirks, or acting as normal.
 ```

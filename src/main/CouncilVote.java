@@ -20,7 +20,7 @@ public class CouncilVote {
      *             For example, a process may be incredibly responsive, unreliable, or slow. This is to allow
      *             for testing of scenarios such as processes acting according to their quirks, or acting as normal.
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         if (args.length < 2 || args.length > 3) {
             System.out.println("Usage: java member.CouncilVote <member number> <-a|-p> [quirks]");
             System.exit(1);
@@ -87,7 +87,7 @@ public class CouncilVote {
      * @param memberNumber : int : the number of the member in the council.
      * @param isProposer : boolean : whether the member is a proposer or not.
      */
-    private static void createAndRunMember(int memberNumber, boolean isProposer) {
+    private static void createAndRunMember(int memberNumber, boolean isProposer) throws InterruptedException {
         logger.info("Creating Member " + memberNumber + " as " + (isProposer ? "Proposer" : "Acceptor"));
         Member member = new MemberImpl(memberNumber, isProposer, false);
         member.run();

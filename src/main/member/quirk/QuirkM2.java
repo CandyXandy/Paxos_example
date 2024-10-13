@@ -1,7 +1,5 @@
 package member.quirk;
 
-import java.io.IOException;
-import java.net.Socket;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -20,9 +18,9 @@ public class QuirkM2 implements Quirk {
     private int delayForm;
 
     /**
-     * M2 will delay their response time by up to 60 seconds, depending on the delay form.
+     * M2 will delay their response time by up to 15 seconds, depending on the delay form.
      */
-    private void delay() {
+    private void delay() throws InterruptedException {
         if (atCafe) {
             return;
         }
@@ -30,27 +28,16 @@ public class QuirkM2 implements Quirk {
             case 0:
                 return;
             case 1:
-                try {
-                    // sleep between 1 and 10 seconds
-                    TimeUnit.SECONDS.sleep(new Random().nextInt(1, 11));
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                    // sleep between 1 and 5 seconds
+                    TimeUnit.SECONDS.sleep(new Random().nextInt(1, 6));
                 break;
             case 2:
-                try {
-                    // sleep between 10 and 30 seconds
-                    TimeUnit.SECONDS.sleep(new Random().nextInt(10, 31));
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                    // sleep between 5 and 10 seconds
+                    TimeUnit.SECONDS.sleep(new Random().nextInt(5, 11));
                 break;
             case 3:
-                try {
-                    TimeUnit.SECONDS.sleep(new Random().nextInt(30, 61));
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                    // sleep between 10 and 15 seconds
+                    TimeUnit.SECONDS.sleep(new Random().nextInt(10, 16));
                 break;
         }
     }
@@ -58,9 +45,9 @@ public class QuirkM2 implements Quirk {
     /**
      * Sets the delay form for M2. M2 has 4 different delay forms:
      * 0: No delay - no delay will be applied.
-     * 1: Small delay - a delay of between 1 and 10 seconds.
-     * 2: Large delay - a delay of between 10 and 30 seconds.
-     * 3: Unresponsive - a delay of between 30 and 60 seconds.
+     * 1: Small delay - a delay of between 0 and 5 seconds.
+     * 2: Large delay - a delay of between 5 and 10 seconds.
+     * 3: Unresponsive - a delay of between 10 and 15 seconds.
      *
      * @param delayForm : int : the delay form to set for M2.
      */
@@ -72,39 +59,23 @@ public class QuirkM2 implements Quirk {
         this.delayForm = delayForm;
     }
 
-    /**
-     * M2 drops the connection, closing the socket.
-     *
-     * @param socket : Socket : the socket to drop the connection for.
-     * @throws IOException : if the socket cannot be closed.
-     */
-    private void dropConnection(Socket socket) throws IOException {
-        if (atCafe) {
-            return;
-        }
-        socket.close(); // kill the socket, dropping the connection.
-    }
 
     /**
-     * M2 has a 1/3 chance of dropping a connection, a 1/3 chance of delaying a response, and a 1/6 chance
+     * M2 has a 1/3 chance of doing nothing, a 1/2 chance of delaying a response, and a 1/6 chance
      * of visiting the cafe, where they will be reliable for a minute.
-     *
-     * @param connection : Socket : the connection to drop.
      */
     @Override
-    public void rollDice(Socket connection) throws IOException {
+    public void rollDice() throws InterruptedException {
         int diceRoll = new Random().nextInt(6) + 1;
         switch (diceRoll) {
             case 1:
             case 2:
+            case 3:
                 Logger.getLogger(QuirkM2.class.getName()).fine("M2 is delaying their response.");
                 delay();
                 break;
-            case 3:
             case 4:
             case 5:
-                Logger.getLogger(QuirkM2.class.getName()).fine("M2 is dropping the connection.");
-                dropConnection(connection);
                 break;
             case 6:
                 if (!atCafe) {
@@ -118,7 +89,7 @@ public class QuirkM2 implements Quirk {
     /**
      * Visits Sheoak Cafe for a minute. During this time, M2 will have instant response times, and will never
      * drop connections.
-     * After a minute, a scheduled task will set the value back to false, signifying M2 has left the cafe.
+     * After 2 minutes, a scheduled task will set the value back to false, signifying M2 has left the cafe.
      */
     private void visitCafe() {
         Logger.getLogger(QuirkM2.class.getName()).info("M2 is visiting Sheoak Cafe.");
