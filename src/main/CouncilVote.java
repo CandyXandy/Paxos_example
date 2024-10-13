@@ -1,4 +1,5 @@
-import member.*;
+import member.Member;
+import member.MemberImpl;
 
 import java.util.logging.Logger;
 
@@ -85,7 +86,7 @@ public class CouncilVote {
      * Determines which kind of member to run based on the member number.
      *
      * @param memberNumber : int : the number of the member in the council.
-     * @param isProposer : boolean : whether the member is a proposer or not.
+     * @param isProposer   : boolean : whether the member is a proposer or not.
      */
     private static void createAndRunMember(int memberNumber, boolean isProposer) throws InterruptedException {
         logger.info("Creating Member " + memberNumber + " as " + (isProposer ? "Proposer" : "Acceptor"));

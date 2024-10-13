@@ -29,7 +29,7 @@ public class CouncilConnection {
      * It will try to connect for 10 seconds before giving up.
      *
      * @param serverName : String : the name of the server to connect to.
-     * @param port : int : the port number to connect to.
+     * @param port       : int : the port number to connect to.
      * @return : Socket : the socket connection to the server.
      * @throws IOException : if the connection could not be established.
      */
@@ -38,7 +38,7 @@ public class CouncilConnection {
         Socket socket = null;
         boolean connected = false;
         // try for 5 seconds
-        while (!connected && System.currentTimeMillis() - startTime < 5000) {
+        while (!connected && System.currentTimeMillis() - startTime < 10000) {
             try {
                 socket = new Socket(serverName, port);
                 connected = true;
@@ -71,11 +71,11 @@ public class CouncilConnection {
         // read the message in a separate thread, so we can time out if it takes too long
         long startTime = System.currentTimeMillis(); // fetch starting time
         new Thread(() -> {
-           try {
-               message.set(in.readLine());
-           } catch (IOException _) {
+            try {
+                message.set(in.readLine());
+            } catch (IOException _) {
                 // die quietly
-           }
+            }
         }).start();
         // wait for the message to be read or time out after 5 seconds
         while (message.get() == null && (System.currentTimeMillis() - startTime) < 5000) {

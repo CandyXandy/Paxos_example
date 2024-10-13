@@ -4,11 +4,11 @@ import member.quirk.Quirk;
 import member.quirk.QuirkM2;
 import member.quirk.QuirkM3;
 import member.quirk.QuirkOther;
-
 import message.Message;
 import util.CouncilConnection;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -32,24 +32,21 @@ public class MemberImpl implements Member {
     private final String HOST = "localhost"; // The host to connect to.
 
     private final Members memberNumber; // The number of the member in the council.
-    private boolean isProposer; // Whether the member is a proposer or not.
     private final Quirk myQuirks; // This member's quirks, if they have any.
-
-    private Members president; // The president of the council. Only decided once the algorithm has run.
-
-    private boolean finish = false; // Whether we are confident the president has been decided or not.
-
     /* must be atomic since it can potentially be accessed concurrently when an acceptor
      how many proposals I have made / the highest proposal number I have seen. */
     private final AtomicInteger proposalNumber;
+    private boolean isProposer; // Whether the member is a proposer or not.
+    private Members president; // The president of the council. Only decided once the algorithm has run.
+    private boolean finish = false; // Whether we are confident the president has been decided or not.
 
     /**
      * Constructor for the MemberImpl class. The constructor takes the member number and whether the member is a proposer.
      * The constructor also takes a boolean to determine if the member is in test mode or not.
      *
      * @param memberNumber : int : the number of the member in the council.
-     * @param isProposer : boolean : true if the member is a proposer, false otherwise.
-     * @param isTestMode : boolean : true if the member is in test mode, false otherwise.
+     * @param isProposer   : boolean : true if the member is a proposer, false otherwise.
+     * @param isTestMode   : boolean : true if the member is in test mode, false otherwise.
      */
     public MemberImpl(int memberNumber, boolean isProposer, boolean isTestMode) {
         if (memberNumber < 1 || memberNumber > 9) {
@@ -68,8 +65,9 @@ public class MemberImpl implements Member {
     /**
      * 'Default' constructor, takes a member number to decide which member we are, and whether we're
      * a proposer. This constructor is used when the member is not in test mode.
+     *
      * @param memberNumber : int : the number of the member in the council.
-     * @param isProposer : boolean : true if the member is a proposer, false otherwise.
+     * @param isProposer   : boolean : true if the member is a proposer, false otherwise.
      */
     public MemberImpl(int memberNumber, boolean isProposer) {
         this(memberNumber, isProposer, false);
@@ -304,7 +302,7 @@ public class MemberImpl implements Member {
      * again.
      */
     @Override
-    public void listenForMessages() {
+    public void listenForMessages() throws InterruptedException {
         try (
                 ServerSocket listenSocket = new ServerSocket(this.getMemberNumber().getPort());
                 ExecutorService executorService = Executors.newSingleThreadExecutor()
@@ -313,15 +311,18 @@ public class MemberImpl implements Member {
             listenSocket.setSoTimeout(new Random().nextInt(5, 16) * 1000); // timeout between 5 and 15 sec
             while (attemptsWithoutMessage <= 3) { // If we haven't received a message in 3 attempts, we will shut down.
                 try {
-                Socket clientSocket = listenSocket.accept(); // Wait for a connection.
-                executorService.submit(() -> {
-                    try {
-                        handleMessages(clientSocket);
-                    } catch (InterruptedException _) {
-                        //
+                    Socket clientSocket = listenSocket.accept(); // Wait for a connection.
+                    if (myQuirks != null) { // if in quirk mode
+                        myQuirks.rollDice(); // roll the dice to determine the member's behavior.
                     }
-                });
-                attemptsWithoutMessage = 0; // Reset the number of attempts if we receive a message.
+                    executorService.submit(() -> {
+                        try {
+                            handleMessages(clientSocket);
+                        } catch (InterruptedException _) {
+                            //
+                        }
+                    });
+                    attemptsWithoutMessage = 0; // Reset the number of attempts if we receive a message.
                 } catch (SocketTimeoutException e) {
                     attemptsWithoutMessage++; // increment the number of attempts on timeout.
                 }
@@ -354,9 +355,6 @@ public class MemberImpl implements Member {
     @Override
     public void handleMessages(Socket clientSocket) throws InterruptedException {
         try {
-            if (myQuirks != null) { // if in quirk mode
-                myQuirks.rollDice(); // roll the dice to determine the member's behavior.
-            }
             Message message = CouncilConnection.readMessage(clientSocket);
             switch (message.message()) {
                 case "PREPARE":
@@ -456,8 +454,8 @@ public class MemberImpl implements Member {
      * passed as an argument is incremented.
      * We ignore any exceptions or failures, just logging them to the debug level log.
      *
-     * @param member : Members : the member to send the accept-request message to.
-     * @param toVoteFor : Members : the member that this member would like to vote for.
+     * @param member      : Members : the member to send the accept-request message to.
+     * @param toVoteFor   : Members : the member that this member would like to vote for.
      * @param acceptCount : AtomicInteger : the accept count to increment if the member responds with an accept-ok.
      */
     private void sendAcceptRequestToMember(Members member, Members toVoteFor, AtomicInteger acceptCount) {
@@ -491,7 +489,7 @@ public class MemberImpl implements Member {
     /**
      * Sends an accept-ok message to the proposer at the other end of the client socket input argument.
      *
-     * @param message : Message : the message received from the proposer.
+     * @param message      : Message : the message received from the proposer.
      * @param clientSocket : Socket : the socket that the message was received on.
      * @throws IOException : if the accept-ok message could not be sent to the proposer.
      */
@@ -509,7 +507,7 @@ public class MemberImpl implements Member {
     /**
      * Sends a reject message to the proposer at the other end of the client socket input argument.
      *
-     * @param message : Message : the message received from the proposer.
+     * @param message      : Message : the message received from the proposer.
      * @param clientSocket : Socket : the socket that the message was received on.
      * @throws IOException : if the reject message could not be sent to the proposer.
      */
@@ -552,7 +550,7 @@ public class MemberImpl implements Member {
      * Creates a socket connection to the given member and sends a decide message to the member with
      * the input Member as the proposer's vote for president.
      *
-     * @param member : Members : the member to send the decide message to.
+     * @param member    : Members : the member to send the decide message to.
      * @param president : Members : the member that the proposer has voted for as president.
      */
     private void sendDecideMessageToMember(Members member, Members president) {

@@ -28,16 +28,16 @@ public class QuirkM2 implements Quirk {
             case 0:
                 return;
             case 1:
-                    // sleep between 1 and 5 seconds
-                    TimeUnit.SECONDS.sleep(new Random().nextInt(1, 6));
+                // sleep between 1 and 5 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(1, 6));
                 break;
             case 2:
-                    // sleep between 5 and 10 seconds
-                    TimeUnit.SECONDS.sleep(new Random().nextInt(5, 11));
+                // sleep between 5 and 10 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(5, 11));
                 break;
             case 3:
-                    // sleep between 10 and 15 seconds
-                    TimeUnit.SECONDS.sleep(new Random().nextInt(10, 16));
+                // sleep between 10 and 15 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(10, 16));
                 break;
         }
     }
@@ -97,12 +97,11 @@ public class QuirkM2 implements Quirk {
         // for the next minute M2 will be reliable.
         ScheduledExecutorService n = Executors.newSingleThreadScheduledExecutor();
         // set the value back to false after a minute.
-        n.schedule(() ->  {
+        n.schedule(() -> {
             atCafe = false;
             Logger.getAnonymousLogger().info("M2 has left Sheoak Cafe.");
-            }, 60, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
-
 
 
 }

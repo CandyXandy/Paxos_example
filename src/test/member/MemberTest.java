@@ -343,6 +343,7 @@ public class MemberTest {
 
 
     /* HELPERS */
+
     /**
      * Instantiates all members of the council
      * Members are instantiated as acceptors, and they are not in quirk mode by default
@@ -405,30 +406,6 @@ public class MemberTest {
 
 
     /**
-     * Counts the votes for each member and checks that everyone voted for the same president.
-     * If the votes are not unanimous, the test will fail.
-     * The test will pass if all members voted for the same president.
-     *
-     * @param members : List<Member> : the list of members to count the votes for.
-     */
-    private void countVotes(List<Member> members) {
-        // count up the votes for each member
-        int[] votes = new int[Members.values().length];
-        for (Member member : members) {
-            votes[Members.getMemberNumber(member.whoIsPresident())]++;
-        }
-        // check that everyone voted for the same president
-        int maxVotes = 0;
-        for (int vote : votes) {
-            if (vote > maxVotes) {
-                maxVotes = vote;
-            }
-        }
-        assertEquals(maxVotes, members.size());
-    }
-
-
-    /**
      * Counts the votes as per countVotes() but checks that the
      * majority of members voted for the same president rather than all.
      * This is to account for byzantine nodes that may end up unluckily 'going camping'
@@ -461,7 +438,7 @@ public class MemberTest {
      * Sets n random members to be proposers.
      *
      * @param members : List<Member> : the list of members to set the proposers for.
-     * @param n : int : the number of proposers to set.
+     * @param n       : int : the number of proposers to set.
      */
     private void setNRandomToProposer(List<Member> members, int n) {
         // set three random members to be proposers
@@ -488,7 +465,7 @@ public class MemberTest {
     private void waitForMajorityToFinish(List<Member> members, List<Future<?>> futures) throws InterruptedException {
         int finishedTasks = 0;
         Iterator<Future<?>> iterator = futures.iterator();
-        while (finishedTasks <= Math.floor( (double) members.size() / 2)) {
+        while (finishedTasks <= Math.floor((double) members.size() / 2)) {
             while (iterator.hasNext()) {
                 Future<?> future = iterator.next();
                 if (future.isDone()) {

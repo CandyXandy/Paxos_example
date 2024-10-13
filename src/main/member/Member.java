@@ -15,18 +15,29 @@ import java.net.Socket;
  */
 public interface Member {
     void run() throws InterruptedException; // runs the member.
+
     void prepare() throws InterruptedException; // creates a prepare message to broadcast to all councillors.
+
     Members whoToVoteFor(); // returns the member this member would like to vote for.
-    void listenForMessages(); // listens for messages from other councillors.
+
+    void listenForMessages() throws InterruptedException; // listens for messages from other councillors.
+
     void handleMessages(Socket clientSocket) throws InterruptedException; // handles messages from other councillors.
+
     void promise(Message message, Socket clientSocket) throws IOException; // sends a 'prepare-ok' message to the proposer.
+
     void acceptRequest(Members toVoteFor) throws InterruptedException; // broadcasts an 'accept-request' message to the majority.
+
     void accept(Message message, Socket clientSocket) throws IOException; // sends an 'accept-ok' message to the proposer.
+
     void reject(Message message, Socket clientSocket) throws IOException; // sends an 'accept-reject' message to the proposer.
+
     void decide(Members president); // broadcasts a 'decide' message to all councillors.
 
     Members getMemberNumber(); // returns the Members object representing this member.
+
     void setProposer(boolean proposer); // sets whether this member is a proposer.
+
     Members whoIsPresident(); // returns the elected president.
 
     Quirk getMyQuirks();

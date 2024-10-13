@@ -16,27 +16,6 @@ public enum Members {
     M9; // 4013
 
 
-
-    /**
-     * This method returns the port number of the member.
-     *
-     * @return : int : the port number of the member.
-     */
-    public int getPort() {
-        return switch (this) {
-            case M1 -> 4005;
-            case M2 -> 4006;
-            case M3 -> 4007;
-            case M4 -> 4008;
-            case M5 -> 4009;
-            case M6 -> 4010;
-            case M7 -> 4011;
-            case M8 -> 4012;
-            case M9 -> 4013;
-        };
-    }
-
-
     /**
      * This method returns the member number based on the member.
      * i.e. M1 will return 1.
@@ -79,7 +58,6 @@ public enum Members {
         };
     }
 
-
     /**
      * This method returns the member based on the port number.
      *
@@ -98,6 +76,25 @@ public enum Members {
             case 4012 -> M8;
             case 4013 -> M9;
             default -> throw new IllegalArgumentException("Unexpected value: " + port);
+        };
+    }
+
+    /**
+     * This method returns the port number of the member.
+     *
+     * @return : int : the port number of the member.
+     */
+    public int getPort() {
+        return switch (this) {
+            case M1 -> 4005;
+            case M2 -> 4006;
+            case M3 -> 4007;
+            case M4 -> 4008;
+            case M5 -> 4009;
+            case M6 -> 4010;
+            case M7 -> 4011;
+            case M8 -> 4012;
+            case M9 -> 4013;
         };
     }
 }

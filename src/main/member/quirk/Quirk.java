@@ -9,5 +9,6 @@ package member.quirk;
  */
 public interface Quirk {
     void setDelayForm(int delayForm); // switches between no, small, large, and unresponsive delay.
+
     void rollDice() throws InterruptedException; // Rolls a die to determine the member's behavior.
 }
