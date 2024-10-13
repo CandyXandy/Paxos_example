@@ -1,9 +1,6 @@
 package member;
 
-import member.quirk.Quirk;
-import member.quirk.QuirkM2;
-import member.quirk.QuirkM3;
-import member.quirk.QuirkOther;
+import member.quirk.*;
 import message.Message;
 import util.CouncilConnection;
 
@@ -574,7 +571,7 @@ public class MemberImpl implements Member {
      */
     private Quirk whoseQuirks() {
         return switch (this.getMemberNumber()) {
-            case M1 -> null; // M1 has no quirks.
+            case M1 -> new QuirkM1();
             case M2 -> new QuirkM2();
             case M3 -> new QuirkM3();
             default -> new QuirkOther();
