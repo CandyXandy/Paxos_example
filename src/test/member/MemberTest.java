@@ -143,6 +143,11 @@ public class MemberTest {
         assertNotNull(vote);
     }
 
+
+    /**
+     * Tests the case where all M1-M9 have immediate responses to voting queries from
+     * two proposers, and the proposers are the first two members.
+     */
     @Test
     public void testPaxosTwoProposersNoQuirksImmediateResponse() {
         List<Member> members = getAllMembers();
@@ -157,19 +162,7 @@ public class MemberTest {
         // wait for the members to finish
         executor.shutdown();
         while (!executor.isTerminated()) Thread.onSpinWait();
-        // count up the votes for each member
-        int[] votes = new int[Members.values().length];
-        for (Member member : members) {
-            votes[Members.getMemberNumber(member.whoIsPresident())]++;
-        }
-        // check that everyone voted for the same president
-        int maxVotes = 0;
-        for (int vote : votes) {
-            if (vote > maxVotes) {
-                maxVotes = vote;
-            }
-        }
-        assertEquals(maxVotes, members.size());
+        countVotes(members);
     }
 
 
@@ -193,6 +186,48 @@ public class MemberTest {
         for (Member member : members) {
             assertEquals(Members.M1, member.whoIsPresident());
         }
+    }
+
+
+    /**
+     * Tests the case where all M1-M9 have immediate responses to three random
+     * proposers voting queries.
+     */
+    @Test
+    public void testPaxosThreeRandomProposersImmediateResponse() {
+        List<Member> members = getAllMembers();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        setNRandomToProposer(members, 3);
+        // start all the members
+        for (Member member : members) {
+            executor.submit(new Thread(member::run));
+        }
+        // wait for the members to finish
+        executor.shutdown();
+        while (!executor.isTerminated()) Thread.onSpinWait();
+        // count up the votes for each member
+        countVotes(members);
+    }
+
+
+    /**
+     * Tests the case where all M1-M9 have immediate responses to four random
+     * proposers voting queries.
+     */
+    @Test
+    public void testPaxosFourRandomProposersImmediateResponse() {
+        List<Member> members = getAllMembers();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        setNRandomToProposer(members, 4);
+        // start all the members
+        for (Member member : members) {
+            executor.submit(new Thread(member::run));
+        }
+        // wait for the members to finish
+        executor.shutdown();
+        while (!executor.isTerminated()) Thread.onSpinWait();
+        // count up the votes for each member
+        countVotes(members);
     }
 
 
@@ -240,5 +275,50 @@ public class MemberTest {
             futures.add(future);
         }
         return futures;
+    }
+
+    /**
+     * Counts the votes for each member and checks that everyone voted for the same president.
+     * If the votes are not unanimous, the test will fail.
+     * The test will pass if all members voted for the same president.
+     *
+     * @param members : List<Member> : the list of members to count the votes for.
+     */
+    private void countVotes(List<Member> members) {
+        // count up the votes for each member
+        int[] votes = new int[Members.values().length];
+        for (Member member : members) {
+            votes[Members.getMemberNumber(member.whoIsPresident())]++;
+        }
+        // check that everyone voted for the same president
+        int maxVotes = 0;
+        for (int vote : votes) {
+            if (vote > maxVotes) {
+                maxVotes = vote;
+            }
+        }
+        assertEquals(maxVotes, members.size());
+    }
+
+
+    /**
+     * Sets n random members to be proposers.
+     *
+     * @param members : List<Member> : the list of members to set the proposers for.
+     * @param n : int : the number of proposers to set.
+     */
+    private void setNRandomToProposer(List<Member> members, int n) {
+        // set three random members to be proposers
+        // generate 3 random numbers between 1 and 9 that are unique
+        List<Integer> randomNumbers = new ArrayList<>();
+        while (randomNumbers.size() < n) {
+            int random = ThreadLocalRandom.current().nextInt(1, 10);
+            if (!randomNumbers.contains(random)) {
+                randomNumbers.add(random);
+            }
+        }
+        for (int i = 0; i < n; i++) {
+            members.get(randomNumbers.get(i) - 1).setProposer(true);
+        }
     }
 }
