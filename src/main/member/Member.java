@@ -1,5 +1,6 @@
 package member;
 
+import member.quirk.Quirk;
 import message.Message;
 
 import java.io.IOException;
@@ -27,4 +28,6 @@ public interface Member {
     Members getMemberNumber(); // returns the Members object representing this member.
     void setProposer(boolean proposer); // sets whether this member is a proposer.
     Members whoIsPresident(); // returns the elected president.
+
+    Quirk getMyQuirks();
 }

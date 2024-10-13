@@ -22,7 +22,7 @@ public class CouncilVote {
      */
     public static void main(String[] args) {
         if (args.length < 2 || args.length > 3) {
-            System.out.println("Usage: java CouncilVote <member number> <-a|-p> [quirks]");
+            System.out.println("Usage: java member.CouncilVote <member number> <-a|-p> [quirks]");
             System.exit(1);
         }
         int memberNumber = readMemberNumberArg(args[0]);

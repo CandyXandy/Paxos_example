@@ -54,9 +54,9 @@ public class CouncilConnectionTest {
         Mockito.when(mockedSocket.getInputStream()).thenReturn(new ByteArrayInputStream("MESSAGE 4005:1 _".getBytes()));
         Message message = CouncilConnection.readMessage(mockedSocket);
         assertNotNull(message);
-        assertEquals(4005, message.getSender().getPort());
-        assertEquals(1, message.getProposalNum());
-        assertEquals("MESSAGE", message.getMessage());
+        assertEquals(4005, message.sender().getPort());
+        assertEquals(1, message.proposalNum());
+        assertEquals("MESSAGE", message.message());
     }
 
 

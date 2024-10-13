@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -231,9 +232,37 @@ public class MemberTest {
     }
 
 
+    /**
+     * Tests the case where all M1-M9 have random delays set as per their Quirk profiles.
+     * We use three proposers in this test.
+     */
+    @Test
+    public void testPaxosRandomDelaysThreeProposers() {
+        List<Member> members = getAllByzantineMembers();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        setNRandomToProposer(members, 3);
+        List<Future<?>> futures = new ArrayList<>();
+        // start all the members
+        for (Member member : members) {
+            int delayForm = ThreadLocalRandom.current().nextInt(0, 4);
+            futures.add(executor.submit(new Thread(() -> {
+                member.getMyQuirks().setDelayForm(delayForm);
+                member.run();
+            })));
+        }
+        // wait for at least a majority of the members to finish
+        executor.shutdown();
+        waitForMajorityToFinish(members, futures);
+        // count up the votes for each member, but only check that the majority voted for the same president
+        countVotesMajority(members);
+        // if the test passes, we need to murder any remaining threads
+    }
+
+
+
+
 
     /* HELPERS */
-
     /**
      * Instantiates all members of the council
      * Members are instantiated as acceptors, and they are not in quirk mode by default
@@ -244,6 +273,23 @@ public class MemberTest {
         List<Member> members = new ArrayList<>();
         for (Members member : Members.values()) {
             members.add(new MemberImpl(Members.getMemberNumber(member), false));
+        }
+        return members;
+    }
+
+
+    /**
+     * Instantiates all members of the council
+     * Members are instantiated as acceptors, and they are all in quirk mode.
+     * This is used to test the case where all members are acting arbitrarily according to
+     * the assignment spec profile of each member.
+     *
+     * @return : List<Member> : a list of all members of the council.
+     */
+    private List<Member> getAllByzantineMembers() {
+        List<Member> members = new ArrayList<>();
+        for (Members member : Members.values()) {
+            members.add(new MemberImpl(Members.getMemberNumber(member), false, true));
         }
         return members;
     }
@@ -277,6 +323,7 @@ public class MemberTest {
         return futures;
     }
 
+
     /**
      * Counts the votes for each member and checks that everyone voted for the same president.
      * If the votes are not unanimous, the test will fail.
@@ -302,6 +349,35 @@ public class MemberTest {
 
 
     /**
+     * Counts the votes as per countVotes() but checks that the
+     * majority of members voted for the same president rather than all.
+     * This is to account for byzantine nodes that may end up unluckily 'going camping'
+     * 7 times in a row and thus ending up in the network alone and so never being able to halt.
+     *
+     * @param members : List<Member> : the list of members to count the votes for.
+     */
+    private void countVotesMajority(List<Member> members) {
+        // count up the votes for each member
+        int[] votes = new int[Members.values().length];
+        for (Member member : members) {
+            try {
+                votes[Members.getMemberNumber(member.whoIsPresident())]++;
+            } catch (Exception e) {
+                // ignore exceptions from byzantine nodes
+            }
+        }
+        // check that everyone voted for the same president
+        int maxVotes = 0;
+        for (int vote : votes) {
+            if (vote > maxVotes) {
+                maxVotes = vote;
+            }
+        }
+        assertTrue(maxVotes > members.size() / 2);
+    }
+
+
+    /**
      * Sets n random members to be proposers.
      *
      * @param members : List<Member> : the list of members to set the proposers for.
@@ -320,5 +396,34 @@ public class MemberTest {
         for (int i = 0; i < n; i++) {
             members.get(randomNumbers.get(i) - 1).setProposer(true);
         }
+    }
+
+
+    /**
+     * Waits for a majority of the members to finish their tasks.
+     *
+     * @param members : List<Member> : the list of members to wait for.
+     * @param futures : List<Future<?>> : the list of futures to wait for.
+     */
+    private void waitForMajorityToFinish(List<Member> members, List<Future<?>> futures) {
+        int finishedTasks = 0;
+        Iterator<Future<?>> iterator = futures.iterator();
+        while (finishedTasks <= Math.floor( (double) members.size() / 2)) {
+            while (iterator.hasNext()) {
+                Future<?> future = iterator.next();
+                if (future.isDone()) {
+                    finishedTasks++;
+                    iterator.remove(); // remove the future from the list, so we don't check it again
+                }
+            }
+            // if the iterator is empty, we have checked all the futures, so we need to reset it
+            iterator = futures.iterator();
+        }
+        try {
+            TimeUnit.SECONDS.sleep(30); // wait another 30 seconds for any stragglers.
+        } catch (InterruptedException e) {
+            // do nothing
+        }
+        // we don't wait any longer as any nodes that haven't finished by now are likely to be byzantine
     }
 }

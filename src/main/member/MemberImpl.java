@@ -231,27 +231,30 @@ public class MemberImpl implements Member {
             // Send the prepare message.
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             out.println("PREPARE " + this.getMemberNumber().getPort() + ":" + proposalNumber + " _");
+            if (myQuirks != null) {
+                myQuirks.rollDice(socket); // roll the dice to determine the member's behavior.
+            }
             // wait for the promise
             Message response = CouncilConnection.readMessage(socket);
-            if (response.getMessage().startsWith("PREPARE-OK")) {
+            if (response.message().startsWith("PREPARE-OK")) {
                 // don't check for proposal number, an acceptor can make a promise to a higher proposal number.
-                if (response.getSender() == this.getMemberNumber()) {
-                    if (response.getProposalNum() >= proposalNumber.get()) {
+                if (response.sender() == this.getMemberNumber()) {
+                    if (response.proposalNum() >= proposalNumber.get()) {
                         // if we get a higher proposal number, or the same proposal number,
-                        proposalNumber.set(response.getProposalNum()); // there could already be a president
-                        if (response.getValue() != null) {
+                        proposalNumber.set(response.proposalNum()); // there could already be a president
+                        if (response.value() != null) {
                             logger.fine("Member " + this.getMemberNumber() + " received a promise from " +
                                     member + " for proposal number " + proposalNumber +
-                                    " with value " + response.getValue());
-                            this.president = response.getValue();
-                            promiseValues.put(member, response.getValue());
+                                    " with value " + response.value());
+                            this.president = response.value();
+                            promiseValues.put(member, response.value());
                         }
                     }
                     promiseCount.incrementAndGet(); // Increment the promise count.
                 } else {
                     // I've received a promise meant for someone else or out of order, how strange
                     logger.fine("Received a promise from " + member + " with proposal number " +
-                            response.getProposalNum() + " which was not what I expected.");
+                            response.proposalNum() + " which was not what I expected.");
                     // I will ignore this message and move on.
                 }
             }
@@ -310,7 +313,7 @@ public class MemberImpl implements Member {
                 ExecutorService executorService = Executors.newCachedThreadPool()
         ) {
             int attemptsWithoutMessage = 0; // Keep track of how many times we have not received a message.
-            listenSocket.setSoTimeout(new Random().nextInt(1, 4) * 10000); // timeout between 0 and 30 secs
+            listenSocket.setSoTimeout(new Random().nextInt(1, 4) * 10000); // timeout between 10 and 30 sec
             while (attemptsWithoutMessage <= 3) { // If we haven't received a message in 3 attempts, we will shut down.
                 try {
                 Socket clientSocket = listenSocket.accept(); // Wait for a connection.
@@ -342,18 +345,20 @@ public class MemberImpl implements Member {
     /**
      * Handles messages received by the member. The message is split into parts, and the first part is the message
      * type. The second part is the proposal number. The message is then handled based on the message type.
-     * TODO: quirk mode behaviour
      *
      * @param clientSocket : Socket : The socket that the message was received on.
      */
     @Override
     public void handleMessages(Socket clientSocket) {
         try {
+            if (myQuirks != null) { // if in quirk mode
+                myQuirks.rollDice(clientSocket); // roll the dice to determine the member's behavior.
+            }
             Message message = CouncilConnection.readMessage(clientSocket);
-            switch (message.getMessage()) {
+            switch (message.message()) {
                 case "PREPARE":
-                    if (message.getProposalNum() > this.proposalNumber.get()) {
-                        this.proposalNumber.set(message.getProposalNum());
+                    if (message.proposalNum() > this.proposalNumber.get()) {
+                        this.proposalNumber.set(message.proposalNum());
                         promise(message, clientSocket);
                     } else {
                         logger.fine("member " + this.getMemberNumber() +
@@ -362,23 +367,22 @@ public class MemberImpl implements Member {
                     }
                     break;
                 case "ACCEPT-REQUEST":
-                    if (message.getProposalNum() >= this.proposalNumber.get()) {
-                        // TODO - quirk mode behaviour
+                    if (message.proposalNum() >= this.proposalNumber.get()) {
                         accept(message, clientSocket);
                     } else {
                         reject(message, clientSocket);
                     }
                     break;
                 case "DECIDE":
-                    if (message.getProposalNum() >= this.proposalNumber.get()) {
-                        this.president = message.getValue();
+                    if (message.proposalNum() >= this.proposalNumber.get()) {
+                        this.president = message.value();
                     } else {
                         logger.fine("Received a decide message with a proposal number" +
                                 " less than the current proposal number.");
                     }
                     break;
                 default:
-                    logger.fine("Unknown message type received: " + message.getMessage());
+                    logger.fine("Unknown message type received: " + message.message());
             }
         } catch (IOException e) {
             logger.fine("Error handling the message. " + e.getMessage());
@@ -404,7 +408,7 @@ public class MemberImpl implements Member {
         } else {
             vote = String.valueOf(Members.getMemberNumber(this.president));
         }
-        out.println("PREPARE-OK " + message.getSender().getPort() + ":" + message.getProposalNum() + " " + vote);
+        out.println("PREPARE-OK " + message.sender().getPort() + ":" + message.proposalNum() + " " + vote);
         out.flush();
         out.close();
     }
@@ -456,16 +460,19 @@ public class MemberImpl implements Member {
             // send the accept request
             out.println("ACCEPT-REQUEST " + this.getMemberNumber().getPort() + ":" + proposalNumber.get() + " " +
                     Members.getMemberNumber(toVoteFor));
+            if (myQuirks != null) { // if in quirk mode
+                myQuirks.rollDice(socket); // roll the dice to determine the member's behavior.
+            }
             // read the response
             Message response = CouncilConnection.readMessage(socket);
-            if (response.getMessage().startsWith("ACCEPT-OK")) {
-                if (response.getProposalNum() == proposalNumber.get() &&
-                        response.getSender() == this.getMemberNumber() &&
-                        response.getValue() == toVoteFor) {
+            if (response.message().startsWith("ACCEPT-OK")) {
+                if (response.proposalNum() == proposalNumber.get() &&
+                        response.sender() == this.getMemberNumber() &&
+                        response.value() == toVoteFor) {
                     acceptCount.incrementAndGet();
                 } else {
                     logger.fine("Received an accept-ok from " + member + " with proposal number " +
-                            response.getProposalNum() + " and value " + response.getValue() +
+                            response.proposalNum() + " and value " + response.value() +
                             " which was not what I expected.");
                 }
             } else {
@@ -489,8 +496,8 @@ public class MemberImpl implements Member {
     public void accept(Message message, Socket clientSocket) throws IOException {
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
         // ACCEPT-OK sendersPort:proposalNumber value
-        out.println("ACCEPT-OK " + message.getSender().getPort() + ":" + message.getProposalNum() + " " +
-                Members.getMemberNumber(message.getValue()));
+        out.println("ACCEPT-OK " + message.sender().getPort() + ":" + message.proposalNum() + " " +
+                Members.getMemberNumber(message.value()));
         out.flush();
         out.close();
     }
@@ -507,14 +514,14 @@ public class MemberImpl implements Member {
     public void reject(Message message, Socket clientSocket) throws IOException {
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
         // ACCEPT-REJECT port:proposalNumber _
-        out.println("ACCEPT-REJECT " + message.getSender().getPort() + ":" + message.getProposalNum() + " _");
+        out.println("ACCEPT-REJECT " + message.sender().getPort() + ":" + message.proposalNum() + " _");
         out.flush();
         out.close();
     }
 
 
     /**
-     * Creates an ExecutorService to asynchronously send a decide meessage to all members of the council.
+     * Creates an ExecutorService to asynchronously send a decide message to all members of the council.
      * Once all the messages have been sent, successful or not, we set the president field for this member
      * to the input argument. However, this doesn't necessarily guarantee that this value is the elected
      * president as another proposer may have sent a prepare message with a higher proposal number in the time
@@ -548,6 +555,9 @@ public class MemberImpl implements Member {
      */
     private void sendDecideMessageToMember(Members member, Members president) {
         try (Socket socket = CouncilConnection.getConnection(HOST, member.getPort())) {
+            if (myQuirks != null) { // if in quirk mode
+                myQuirks.rollDice(socket); // roll the dice to determine the member's behavior.
+            }
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             // DECIDE port:proposalNumber value
             out.println("DECIDE " + this.getMemberNumber().getPort() + ":" + this.proposalNumber.get() + " " +
@@ -600,6 +610,7 @@ public class MemberImpl implements Member {
      *
      * @return : Quirk : the quirks of the member.
      */
+    @Override
     public Quirk getMyQuirks() {
         return myQuirks;
     }
@@ -610,6 +621,7 @@ public class MemberImpl implements Member {
      *
      * @return the number of the member in the council.
      */
+    @Override
     public Members getMemberNumber() {
         return memberNumber;
     }

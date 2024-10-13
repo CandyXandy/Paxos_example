@@ -46,7 +46,8 @@ public class CouncilConnection {
                 // the server is not up yet, try again
             } catch (IOException e) {
                 // rethrow the exception so we can handle it in the caller, log it here
-                Logger.getLogger(CouncilConnection.class.getName()).warning("Could not connect to " + serverName + " on port " + port);
+                Logger.getLogger(CouncilConnection.class.getName()).fine("Could not connect to " +
+                        serverName + " on port " + port);
                 throw new IOException("Could not connect to " + serverName + " on port " + port);
             }
         }
