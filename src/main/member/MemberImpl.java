@@ -31,6 +31,14 @@ public class MemberImpl implements Member {
      how many proposals I have made / the highest proposal number I have seen. */
     private final AtomicInteger proposalNumber;
 
+    /**
+     * Constructor for the MemberImpl class. The constructor takes the member number and whether the member is a proposer.
+     * The constructor also takes a boolean to determine if the member is in test mode or not.
+     *
+     * @param memberNumber : int : the number of the member in the council.
+     * @param isProposer : boolean : true if the member is a proposer, false otherwise.
+     * @param isTestMode : boolean : true if the member is in test mode, false otherwise.
+     */
     public MemberImpl(int memberNumber, boolean isProposer, boolean isTestMode) {
         if (memberNumber < 1 || memberNumber > 9) {
             throw new IllegalArgumentException("Member number must be between 1 and 9.");
@@ -41,14 +49,28 @@ public class MemberImpl implements Member {
         this.proposalNumber = new AtomicInteger(0);
     }
 
+    /**
+     * 'Default' constructor, takes a member number to decide which member we are, and whether we're
+     * a proposer. This constructor is used when the member is not in test mode.
+     * @param memberNumber : int : the number of the member in the council.
+     * @param isProposer : boolean : true if the member is a proposer, false otherwise.
+     */
     public MemberImpl(int memberNumber, boolean isProposer) {
         this(memberNumber, isProposer, false);
     }
 
 
+    /**
+     * Begin participating in the paxos algorithm, if the member is a proposer, they will try sending a prepare
+     * message to acceptors, and exponentially backing off when they fail to avoid quickly increasing their
+     * proposal number and 'gaming' the algorithm.
+     * If the member is an acceptor, they just listen out for messages until they're sure
+     * a president has been decided. This will only happen if they have a value for president, and they haven't
+     * received any messages from a proposer in a while.
+     */
     @Override
     public void run() {
-        while (!finish) { // While the president has not been decided. We keep running.
+        while (!finish) { // Unless we're absolutely confident everyone has decided on a president, keep going.
             if (isProposer) {
                 int retryCount = 0;
                 prepare();
@@ -66,9 +88,13 @@ public class MemberImpl implements Member {
 
 
     /**
-     * Sends a prepare message to all members of the council. This is the first step in the Paxos algorithm.
-     * Increments the proposal number, and then sends a prepare message to all members in the format
-     * "PREPARE <member port number>:<proposal number>".
+     * Sends a prepare message to all members of the council asynchronously using an ExecutorService to
+     * manage the thread pools. Once all the messages have been sent, successful or not, we check if we have
+     * received enough promises to proceed to the accept-request phase. If we have, we vote for a president
+     * and send an accept-request message to all members of the council.
+     * If we receive enough promises with the same value, we can assume that value is the president, and
+     * we can output it to the console.
+     * If we don't receive enough promises, we will try again with a higher proposal number.
      */
     @Override
     public void prepare() {
@@ -88,24 +114,28 @@ public class MemberImpl implements Member {
         while (!executorService.isTerminated()) {
             Thread.onSpinWait(); // Wait for all threads to finish.
         }
-        if (promiseCount.get() > Members.values().length / 2) {
-            /* if we get a majority of promises with a value, we can assume that value is the president
-                and that we can safely exit the algorithm. */
+        if (promiseCount.get() > Members.values().length / 2) { // if we have a majority of promises
+
+            // if we got enough promises with a value to potentially form a majority
             if (promiseValues.size() > Math.floor((double) Members.values().length / 2)) {
-                // check if we have a majority of promises with a value
+                // check if we have a majority of promises with the same value
                 if (checkPromisesForMajority(promiseValues)) {
+                    // log the president to the info level
                     logger.info("Member " + this.getMemberNumber() +
                             " received a majority of promises with value " +
                             president + " for proposal number " + proposalNumber);
+                    // Output the president to the console.
                     System.out.println("Member " + this.getMemberNumber() +
                             " says " + this.president + " is the president.");
                     this.finish = true; // we are confident the president has been decided.
                     return; // we can exit the algorithm.
                 }
             }
+
             logger.info("Member " + this.getMemberNumber() +
                     " received enough promises to proceed to ACCEPT REQUEST phase for proposal number " +
                     proposalNumber);
+            // choose who to vote for
             Members presidentVote;
             if (this.president != null) {
                 presidentVote = this.president;
@@ -114,14 +144,24 @@ public class MemberImpl implements Member {
             }
             logger.info("Member " + this.getMemberNumber() + " has voted for " + presidentVote +
                     " in proposal number " + proposalNumber);
-            acceptRequest(presidentVote);
-        } // else, we didn't get enough promises, so we will try again with a higher proposal number.
+            acceptRequest(presidentVote); // proceed to the accept-request phase.
+        }
+        // else, we didn't get enough promises, so we will try again with a higher proposal number.
     }
 
 
+    /**
+     * Checks the promises received from the acceptors to see if there is a majority with the same value.
+     * This method is only called when enough promises have been received to form a majority, so we need
+     * to check if the majority of promises have the same value. If they do, we can assume that value is the
+     * president, and so we return true.
+     *
+     * @param promiseValues : ConcurrentHashMap<Members, Members> : the promises received from the acceptors.
+     * @return : boolean : true if a majority of promises have the same value, false otherwise.
+     */
     private boolean checkPromisesForMajority(ConcurrentHashMap<Members, Members> promiseValues) {
-        int[] votes = new int[Members.values().length];
-        for (Members vote : promiseValues.values()) {
+        int[] votes = new int[Members.values().length]; // Array to store the votes.
+        for (Members vote : promiseValues.values()) { // count the votes, each index in the array represents a member.
             votes[Members.getMemberNumber(vote) - 1]++;
         }
         int maxVotes = 0;
@@ -133,10 +173,12 @@ public class MemberImpl implements Member {
             }
         }
         if (voteLeader == null) {
-            return false;
+            return false; // only happens if no promises were received, which should never happen.
         }
         if (maxVotes > Math.floor((double) Members.values().length / 2)) {
+            // if the vote leader has a majority of votes, we can assume they are the president.
             president = voteLeader;
+            // send a decide message to all members in case any of them missed the majority like we did.
             decide(president);
             return true;
         }
@@ -163,7 +205,7 @@ public class MemberImpl implements Member {
             // wait for the promise
             Message response = CouncilConnection.readMessage(socket);
             if (response.getMessage().startsWith("PREPARE-OK")) {
-                // we don't check for proposal number here since an acceptor can promise to a higher proposal number
+                // don't check for proposal number, an acceptor can make a promise to a higher proposal number.
                 if (response.getSender() == this.getMemberNumber()) {
                     if (response.getProposalNum() >= proposalNumber.get()) {
                         // if we get a higher proposal number, or the same proposal number,
@@ -324,6 +366,12 @@ public class MemberImpl implements Member {
     }
 
 
+    /**
+     * Broadcasts an accept-request message to all members of the council asynchronously. If the proposer receives
+     * enough accept-ok messages to form a majority, they will decide on the value they voted for.
+     *
+     * @param toVoteFor : Members : the member that this member would like to vote for.
+     */
     @Override
     public void acceptRequest(Members toVoteFor) {
         ExecutorService executorService = Executors.newCachedThreadPool();
@@ -347,6 +395,17 @@ public class MemberImpl implements Member {
     }
 
 
+    /**
+     * Sends the accept-request message to the given member of the council. Creates a socket and attempts to connect
+     * to the member on the port obtained from the member enum. If the connection is successful, the message is sent
+     * and the response is read from the member. If the member responds with an accept-ok message, the accept count
+     * passed as an argument is incremented.
+     * We ignore any exceptions or failures, just logging them to the debug level log.
+     *
+     * @param member : Members : the member to send the accept-request message to.
+     * @param toVoteFor : Members : the member that this member would like to vote for.
+     * @param acceptCount : AtomicInteger : the accept count to increment if the member responds with an accept-ok.
+     */
     private void sendAcceptRequestToMember(Members member, Members toVoteFor, AtomicInteger acceptCount) {
         try (Socket socket = CouncilConnection.getConnection(HOST, member.getPort())) {
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
@@ -375,24 +434,50 @@ public class MemberImpl implements Member {
     }
 
 
+    /**
+     * Sends an accept-ok message to the proposer at the other end of the client socket input argument.
+     *
+     * @param message : Message : the message received from the proposer.
+     * @param clientSocket : Socket : the socket that the message was received on.
+     * @throws IOException : if the accept-ok message could not be sent to the proposer.
+     */
     @Override
     public void accept(Message message, Socket clientSocket) throws IOException {
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+        // ACCEPT-OK sendersPort:proposalNumber value
         out.println("ACCEPT-OK " + message.getSender().getPort() + ":" + message.getProposalNum() + " " +
                 Members.getMemberNumber(message.getValue()));
         out.flush();
         out.close();
     }
 
+
+    /**
+     * Sends a reject message to the proposer at the other end of the client socket input argument.
+     *
+     * @param message : Message : the message received from the proposer.
+     * @param clientSocket : Socket : the socket that the message was received on.
+     * @throws IOException : if the reject message could not be sent to the proposer.
+     */
     @Override
     public void reject(Message message, Socket clientSocket) throws IOException {
         PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+        // ACCEPT-REJECT port:proposalNumber _
         out.println("ACCEPT-REJECT " + message.getSender().getPort() + ":" + message.getProposalNum() + " _");
         out.flush();
         out.close();
     }
 
 
+    /**
+     * Creates an ExecutorService to asynchronously send a decide meessage to all members of the council.
+     * Once all the messages have been sent, successful or not, we set the president field for this member
+     * to the input argument. However, this doesn't necessarily guarantee that this value is the elected
+     * president as another proposer may have sent a prepare message with a higher proposal number in the time
+     * it took for this proposer to enter this function after receiving enough accept-ok messages.
+     *
+     * @param president : Members : the member that the proposer has voted for as president.
+     */
     @Override
     public void decide(Members president) {
         ExecutorService executorService = Executors.newCachedThreadPool();
@@ -409,9 +494,18 @@ public class MemberImpl implements Member {
         this.president = president;
     }
 
+
+    /**
+     * Creates a socket connection to the given member and sends a decide message to the member with
+     * the input Member as the proposer's vote for president.
+     *
+     * @param member : Members : the member to send the decide message to.
+     * @param president : Members : the member that the proposer has voted for as president.
+     */
     private void sendDecideMessageToMember(Members member, Members president) {
         try (Socket socket = CouncilConnection.getConnection(HOST, member.getPort())) {
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            // DECIDE port:proposalNumber value
             out.println("DECIDE " + this.getMemberNumber().getPort() + ":" + this.proposalNumber.get() + " " +
                     Members.getMemberNumber(president));
             out.flush();
