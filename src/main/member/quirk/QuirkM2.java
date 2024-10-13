@@ -6,6 +6,7 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 
 /**
@@ -96,11 +97,13 @@ public class QuirkM2 implements Quirk {
         switch (diceRoll) {
             case 1:
             case 2:
+                Logger.getLogger(QuirkM2.class.getName()).fine("M2 is delaying their response.");
                 delay();
                 break;
             case 3:
             case 4:
             case 5:
+                Logger.getLogger(QuirkM2.class.getName()).fine("M2 is dropping the connection.");
                 dropConnection(connection);
                 break;
             case 6:
@@ -118,11 +121,15 @@ public class QuirkM2 implements Quirk {
      * After a minute, a scheduled task will set the value back to false, signifying M2 has left the cafe.
      */
     private void visitCafe() {
+        Logger.getLogger(QuirkM2.class.getName()).info("M2 is visiting Sheoak Cafe.");
         atCafe = true;
         // for the next minute M2 will be reliable.
         ScheduledExecutorService n = Executors.newSingleThreadScheduledExecutor();
         // set the value back to false after a minute.
-        n.schedule(() -> atCafe = false, 60, TimeUnit.SECONDS);
+        n.schedule(() ->  {
+            atCafe = false;
+            Logger.getAnonymousLogger().info("M2 has left Sheoak Cafe.");
+            }, 60, TimeUnit.SECONDS);
     }
 
 

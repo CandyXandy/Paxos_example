@@ -1,6 +1,7 @@
 package member.quirk;
 
 import java.net.Socket;
+import java.util.logging.Logger;
 
 
 /**
@@ -81,6 +82,7 @@ public class QuirkM3 implements Quirk {
             case 1:
             case 2:
             case 3:
+                Logger.getLogger(QuirkM3.class.getName()).fine("M3 is delaying their response.");
                 delay();
                 break;
             case 4:
@@ -97,10 +99,12 @@ public class QuirkM3 implements Quirk {
      * M3 will go camping for a minute, where they will be completely unresponsive for a minute.
      */
     private void goCamping() {
+        Logger.getLogger(QuirkM3.class.getName()).info("M3 is going camping.");
         try {
             Thread.sleep(60000); // M3 will go camping for a minute.
         } catch (InterruptedException e) {
             // do nothing
         }
+        Logger.getLogger(QuirkM3.class.getName()).info("M3 has returned from camping.");
     }
 }

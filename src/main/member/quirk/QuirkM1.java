@@ -3,6 +3,7 @@ package member.quirk;
 
 import java.net.Socket;
 import java.util.Random;
+import java.util.logging.Logger;
 
 /**
  * The M1 member's quirks are that they are very chatty over social media, and responds to messages almost
@@ -41,6 +42,7 @@ public class QuirkM1 implements Quirk {
     public void rollDice(Socket connection) {
         int diceRoll = new Random().nextInt(6) + 1;
         if (diceRoll == 1 || diceRoll == 2) { // 1/3 chance of delaying the message for up to a second
+            Logger.getLogger(QuirkM1.class.getName()).fine("M1 is delaying their response.");
             delay();
         }
     }
