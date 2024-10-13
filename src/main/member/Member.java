@@ -14,7 +14,7 @@ import java.net.Socket;
  * the methods according to their specific behavior. Any member may become council president.
  */
 public interface Member {
-    void run() throws InterruptedException; // runs the member.
+    void run(); // runs the member.
 
     void prepare() throws InterruptedException; // creates a prepare message to broadcast to all councillors.
 

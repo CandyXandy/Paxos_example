@@ -85,27 +85,33 @@ public class MemberImpl implements Member {
      * hasn't received a message in a long time, and they have a value for president.
      */
     @Override
-    public void run() throws InterruptedException {
-        int retryCount = 0;
-        while (!finish) { // Unless we're absolutely confident everyone has decided on a president, keep going.
-            if (isProposer) {
-                prepare();
-                if (president == null) {
-                    if (retryCount >= 10) {
-                        // tried 10 times and still can't succeed, there might be too many proposers
-                        logger.info("Member " + this.getMemberNumber() + " has tried 10 times and failed to" +
-                                " get enough votes, becoming an acceptor.");
-                        this.setProposer(false); // I will become an acceptor.
-                        retryCount = 0; // reset the retry count.
-                        continue;
+    public void run() {
+        try {
+            int retryCount = 0;
+            while (!finish) { // Unless we're absolutely confident everyone has decided on a president, keep going.
+                if (isProposer) {
+                    prepare();
+                    if (president == null) {
+                        if (retryCount >= 10) {
+                            // tried 10 times and still can't succeed, there might be too many proposers
+                            logger.info("Member " + this.getMemberNumber() + " has tried 10 times and failed to" +
+                                    " get enough votes, becoming an acceptor.");
+                            this.setProposer(false); // I will become an acceptor.
+                            retryCount = 0; // reset the retry count.
+                            continue;
+                        }
+                        retryCount++;
                     }
-                    retryCount++;
+                } else {
+                    // Acceptors do nothing until they receive a prepare message.
+                    listenForMessages();
                 }
-            } else {
-                // Acceptors do nothing until they receive a prepare message.
-                listenForMessages();
             }
+        } catch (InterruptedException e) {
+            logger.fine("Member " + this.getMemberNumber() + " has been interrupted. " + e.getMessage());
+            // if we've been interrupted, we will just exit the algorithm.
         }
+
     }
 
 

@@ -159,13 +159,7 @@ public class MemberTest {
         members.get(1).setProposer(true);
         // start all the members
         for (Member member : members) {
-            futures.add(executor.submit(new Thread(() -> {
-                try {
-                    member.run();
-                } catch (InterruptedException e) {
-                    // die quietly
-                }
-            })));
+            futures.add(executor.submit(new Thread(member::run)));
         }
         // wait for the members to finish
         executor.shutdown();
@@ -190,13 +184,7 @@ public class MemberTest {
         members.getFirst().setProposer(true);
         // start all the members
         for (Member member : members) {
-            futures.add(executor.submit(new Thread(() -> {
-                try {
-                    member.run();
-                } catch (InterruptedException _) {
-                    // die quietly
-                }
-            })));
+            futures.add(executor.submit(new Thread(member::run)));
         }
         // wait for the members to finish
         executor.shutdown();
@@ -221,13 +209,7 @@ public class MemberTest {
         setNRandomToProposer(members, 3);
         // start all the members
         for (Member member : members) {
-            futures.add(executor.submit(new Thread(() -> {
-                try {
-                    member.run();
-                } catch (InterruptedException e) {
-                    // die quietly
-                }
-            })));
+            futures.add(executor.submit(new Thread(member::run)));
         }
         // wait for the members to finish
         executor.shutdown();
@@ -252,13 +234,7 @@ public class MemberTest {
         setNRandomToProposer(members, 4);
         // start all the members
         for (Member member : members) {
-            futures.add(executor.submit(new Thread(() -> {
-                try {
-                    member.run();
-                } catch (InterruptedException e) {
-                    // die quietly
-                }
-            })));
+            futures.add(executor.submit(new Thread(member::run)));
         }
         // wait for the members to finish
         executor.shutdown();
@@ -287,11 +263,7 @@ public class MemberTest {
             int delayForm = ThreadLocalRandom.current().nextInt(0, 4);
             futures.add(executor.submit(new Thread(() -> {
                 member.getMyQuirks().setDelayForm(delayForm);
-                try {
-                    member.run();
-                } catch (InterruptedException e) {
-                    //
-                }
+                member.run();
             })));
         }
         // wait for at least a majority of the members to finish
@@ -322,11 +294,7 @@ public class MemberTest {
         for (Member member : members) {
             futures.add(executor.submit(new Thread(() -> {
                 member.getMyQuirks().setDelayForm(3);
-                try {
-                    member.run();
-                } catch (InterruptedException e) {
-                    // die quietly
-                }
+                member.run();
             })));
         }
         // wait for at least a majority of the members to finish
