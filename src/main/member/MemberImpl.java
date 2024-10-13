@@ -1,5 +1,11 @@
 package member;
 
+import member.quirk.Quirk;
+import member.quirk.QuirkM1;
+import member.quirk.QuirkM2;
+import member.quirk.QuirkM3;
+import member.quirk.QuirkOther;
+
 import message.Message;
 import util.CouncilConnection;
 
@@ -14,14 +20,21 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
+/**
+ * The implementation of the Member interface. This class represents a member of the Adelaide Suburbs Council.
+ * Each member can propose a value, vote for a value, and accept or reject a value. There are 9 members in the council,
+ * and 3 of them behave differently from each other and the rest of the members.
+ * Members act according to whether they're a proposer or an acceptor, and they can run the  Paxos algorithm to
+ * elect a president of the council.
+ */
 public class MemberImpl implements Member {
     private final static Logger logger = Logger.getLogger(MemberImpl.class.getName());
 
-    private final String HOST = "localhost";
+    private final String HOST = "localhost"; // The host to connect to.
 
     private final Members memberNumber; // The number of the member in the council.
     private boolean isProposer; // Whether the member is a proposer or not.
-    private final boolean isQuirkMode; // Whether the member is in test mode or not.
+    private final Quirk myQuirks; // This member's quirks, if they have any.
 
     private Members president; // The president of the council. Only decided once the algorithm has run.
 
@@ -45,8 +58,12 @@ public class MemberImpl implements Member {
         }
         this.memberNumber = Members.getMember(memberNumber);
         this.isProposer = isProposer;
-        this.isQuirkMode = isTestMode;
         this.proposalNumber = new AtomicInteger(0);
+        if (isTestMode) { // If the member is in test mode, they will have quirks.
+            this.myQuirks = whoseQuirks();
+        } else { // If the member is not in test mode, they will not have quirks.
+            this.myQuirks = null;
+        }
     }
 
     /**
@@ -67,14 +84,27 @@ public class MemberImpl implements Member {
      * If the member is an acceptor, they just listen out for messages until they're sure
      * a president has been decided. This will only happen if they have a value for president, and they haven't
      * received any messages from a proposer in a while.
+     * If a proposer has attempted to make a proposal 10 times and failed, they will become an acceptor.
+     * However, to avoid making progress impossible, acceptors will also become proposers if they haven't received
+     * a message in a very long time.
+     * This method will run until a president has been decided, and the finish flag is set to true, which will only
+     * happen when a proposer has received enough promises with the same value to form a majority, or when an acceptor
+     * hasn't received a message in a long time, and they have a value for president.
      */
     @Override
     public void run() {
+        int retryCount = 0;
         while (!finish) { // Unless we're absolutely confident everyone has decided on a president, keep going.
             if (isProposer) {
-                int retryCount = 0;
                 prepare();
                 if (president == null) {
+                    if (retryCount >= 10) {
+                        // tried 10 times and still can't succeed, there might be too many proposers
+                        logger.info("Member " + this.getMemberNumber() + " has tried 10 times and failed to" +
+                                " get enough votes, becoming an acceptor.");
+                        this.setProposer(false); // I will become an acceptor.
+                        continue;
+                    }
                     // exponential backoff if we don't get enough promises
                     retryCount++;
                     backOff(retryCount);
@@ -121,12 +151,11 @@ public class MemberImpl implements Member {
                 // check if we have a majority of promises with the same value
                 if (checkPromisesForMajority(promiseValues)) {
                     // log the president to the info level
-                    logger.info("Member " + this.getMemberNumber() +
-                            " received a majority of promises with value " +
-                            president + " for proposal number " + proposalNumber);
+                    logger.info("Member " + this.getMemberNumber() + " received a majority of" +
+                            " promises with value " + president + " for proposal number " + proposalNumber);
                     // Output the president to the console.
-                    System.out.println("Member " + this.getMemberNumber() +
-                            " says " + this.president + " is the president.");
+                    System.out.println("Member " + this.getMemberNumber() + " says " +
+                            this.president + " is the president.");
                     this.finish = true; // we are confident the president has been decided.
                     return; // we can exit the algorithm.
                 }
@@ -266,6 +295,10 @@ public class MemberImpl implements Member {
     /**
      * Sets up a server socket to listen for messages from other members of the council. When a message is received,
      * a new thread is created to handle the message.
+     * The server socket has a timeout of between 0 and 30 seconds, so if we haven't received a message in a long time,
+     * we can assume that the proposers have failed, and one of the acceptors will have to take over.
+     * We randomise the timeout on this so that all acceptors don't suddenly all become proposers at the same time,
+     * making progress impossible.
      * If an exception is thrown, we log the error, but we will propagate back to the run method where we will
      * check if the president has been decided, if not we will end up back here and will begin listening for messages
      * again.
@@ -277,8 +310,8 @@ public class MemberImpl implements Member {
                 ExecutorService executorService = Executors.newCachedThreadPool()
         ) {
             int attemptsWithoutMessage = 0; // Keep track of how many times we have not received a message.
-            listenSocket.setSoTimeout(10000); // Set a timeout of 10 seconds.
-            while (attemptsWithoutMessage <= 3) { // If we haven't received a message in 30 seconds, we will shut down.
+            listenSocket.setSoTimeout(new Random().nextInt(1, 4) * 10000); // timeout between 0 and 30 secs
+            while (attemptsWithoutMessage <= 3) { // If we haven't received a message in 3 attempts, we will shut down.
                 try {
                 Socket clientSocket = listenSocket.accept(); // Wait for a connection.
                 executorService.submit(() -> handleMessages(clientSocket));
@@ -287,6 +320,16 @@ public class MemberImpl implements Member {
                     attemptsWithoutMessage++; // increment the number of attempts on timeout.
                 }
             }
+            // check if there is a president
+            if (this.president == null) {
+                /* if we haven't received a message in 30 seconds, and we don't have a president, we can assume
+                    that the proposers have failed, one of the acceptors will have to take over. */
+                logger.info("Member " + this.getMemberNumber() + " has not received a message in a long time, " +
+                        "assuming proposer failure, and taking over.");
+                this.setProposer(true); // I will take over as a proposer.
+                return;
+            }
+            // if we have a president, we can exit the algorithm.
             System.out.println("Member " + this.getMemberNumber() + " says " + this.president + " is the president.");
             this.finish = true; // we are confident the president has been decided, so we can exit the algorithm.
         } catch (IOException e) {
@@ -330,7 +373,8 @@ public class MemberImpl implements Member {
                     if (message.getProposalNum() >= this.proposalNumber.get()) {
                         this.president = message.getValue();
                     } else {
-                        logger.fine("Received a decide message with a proposal number less than the current proposal number.");
+                        logger.fine("Received a decide message with a proposal number" +
+                                " less than the current proposal number.");
                     }
                     break;
                 default:
@@ -529,9 +573,35 @@ public class MemberImpl implements Member {
         try {
             Thread.sleep(backOffTime);
         } catch (InterruptedException e) {
-            logger.fine("Member " + this.getMemberNumber() + " was interrupted while sleeping. " + e.getMessage());
+            logger.fine("Member " + this.getMemberNumber() +
+                    " was interrupted while sleeping. " + e.getMessage());
             Thread.currentThread().interrupt();
         }
+    }
+
+
+    /**
+     * Chooses which quirks the member has based on their member number.
+     *
+     * @return : Quirk : the quirks of the member.
+     */
+    private Quirk whoseQuirks() {
+        return switch (this.getMemberNumber()) {
+            case M1 -> new QuirkM1();
+            case M2 -> new QuirkM2();
+            case M3 -> new QuirkM3();
+            default -> new QuirkOther();
+        };
+    }
+
+
+    /**
+     * Gets this member's quirks.
+     *
+     * @return : Quirk : the quirks of the member.
+     */
+    public Quirk getMyQuirks() {
+        return myQuirks;
     }
 
 

@@ -24,7 +24,7 @@ public interface Member {
     void reject(Message message, Socket clientSocket) throws IOException; // sends an 'accept-reject' message to the proposer.
     void decide(Members president); // broadcasts a 'decide' message to all councillors.
 
+    Members getMemberNumber(); // returns the Members object representing this member.
     void setProposer(boolean proposer); // sets whether this member is a proposer.
-
     Members whoIsPresident(); // returns the elected president.
 }
