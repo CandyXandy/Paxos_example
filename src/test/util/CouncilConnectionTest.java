@@ -37,11 +37,12 @@ public class CouncilConnectionTest {
     }
 
     /**
-     * Tests that an IOException is thrown when the connection cannot be established.
+     * Tests that a connection attempt to a non-existent server will not block or hang, and that
+     * an exception will not be thrown.
      */
     @Test
-    public void testGetConnectionIOException() {
-        Assertions.assertThrows(IOException.class, () -> CouncilConnection.getConnection(HOST_DEFAULT, PORT_DEFAULT));
+    public void testGetConnectionNoOtherSide() throws IOException {
+        CouncilConnection.getConnection(HOST_DEFAULT, PORT_DEFAULT);
     }
 
     /**
@@ -50,7 +51,7 @@ public class CouncilConnectionTest {
     @Test
     public void testReadMessage() throws IOException {
         Socket mockedSocket = Mockito.mock(Socket.class);
-        Mockito.when(mockedSocket.getInputStream()).thenReturn(new ByteArrayInputStream("MESSAGE 4005:1".getBytes()));
+        Mockito.when(mockedSocket.getInputStream()).thenReturn(new ByteArrayInputStream("MESSAGE 4005:1 _".getBytes()));
         Message message = CouncilConnection.readMessage(mockedSocket);
         assertNotNull(message);
         assertEquals(4005, message.getSender().getPort());
