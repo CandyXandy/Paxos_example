@@ -386,7 +386,7 @@ public class MemberTest {
         int[] votes = new int[Members.values().length];
         for (Member member : members) {
             try {
-                votes[Members.getMemberNumber(member.whoIsPresident())]++;
+                votes[Members.getMemberNumber(member.whoIsPresident()) - 1]++;
             } catch (Exception e) {
                 // ignore exceptions from byzantine nodes
             }

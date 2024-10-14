@@ -89,6 +89,9 @@ public class MemberImpl implements Member {
         try {
             int retryCount = 0;
             while (!finish) { // Unless we're absolutely confident everyone has decided on a president, keep going.
+                if (Thread.interrupted()) { // check if interrupted, and exit if so.
+                    throw new InterruptedException();
+                }
                 if (isProposer) {
                     prepare();
                     if (president == null) {
@@ -308,7 +311,7 @@ public class MemberImpl implements Member {
     public void listenForMessages() throws InterruptedException {
         try (
                 ServerSocket listenSocket = new ServerSocket(this.getMemberNumber().getPort());
-                ExecutorService executorService = Executors.newSingleThreadExecutor()
+                ExecutorService executorService = Executors.newCachedThreadPool()
         ) {
             int attemptsWithoutMessage = 0; // Keep track of how many times we have not received a message.
             listenSocket.setSoTimeout(new Random().nextInt(5, 16) * 1000); // timeout between 5 and 15 sec
