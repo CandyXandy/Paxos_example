@@ -97,6 +97,7 @@ public class MemberImpl implements Member {
                 }
                 if (isProposer) {
                     prepare();
+                    Thread.sleep(2000); // sleep for 2 seconds before trying again.
                 } else {
                     // Acceptors do nothing until they receive a prepare message.
                     listenForMessages();
@@ -203,7 +204,8 @@ public class MemberImpl implements Member {
                     " in proposal number " + proposalNumber);
             acceptRequest(presidentVote); // proceed to the accept-request phase.
         } else {
-            Thread.sleep(2000); // sleep for 2 seconds before trying again.
+            logger.info(this.getMemberNumber() + " only received " + promiseCount.get() + " for proposal number "
+                    + proposalNumber + ". Trying again with a higher proposal number.");
         }
         // else, we didn't get enough promises, so we will try again with a higher proposal number.
     }
@@ -508,7 +510,11 @@ public class MemberImpl implements Member {
                 myQuirks.rollDice(); // roll the dice to determine the member's behavior.
             }
             decide(toVoteFor);
-        } // else, we didn't get enough accepts, so we will try again with a higher proposal number.
+        } else {
+            logger.info(this.getMemberNumber() + " only received " + acceptCount.get() + " accept-oks for" +
+                    " proposal number " + proposalNumber + ". Trying again with a higher proposal number.");
+            // else, we didn't get enough accepts, so we will try again with a higher proposal number.
+        }
     }
 
 
