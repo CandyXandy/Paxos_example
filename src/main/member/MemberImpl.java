@@ -204,8 +204,8 @@ public class MemberImpl implements Member {
                     " in proposal number " + proposalNumber);
             acceptRequest(presidentVote); // proceed to the accept-request phase.
         } else {
-            logger.info(this.getMemberNumber() + " only received " + promiseCount.get() + " for proposal number "
-                    + proposalNumber + ". Trying again with a higher proposal number.");
+            logger.info(this.getMemberNumber() + " only received " + promiseCount.get() + " promises for" +
+                    " proposal number " + proposalNumber + ". Trying again with a higher proposal number.");
         }
         // else, we didn't get enough promises, so we will try again with a higher proposal number.
     }
