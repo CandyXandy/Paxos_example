@@ -2,6 +2,7 @@ package member.quirk;
 
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 /**
  * This class represents a member of the Adelaide Suburbs Council who is not M1, M2, or M3.
@@ -62,7 +63,8 @@ public class QuirkOther implements Quirk {
     @Override
     public void rollDice() throws InterruptedException {
         int dieRoll = (int) (Math.random() * 6) + 1;
-        if (dieRoll == 1 || dieRoll == 2 || dieRoll == 3) {
+        if (dieRoll == 1 || dieRoll == 2) {
+            // use reflection to get the calling class name
             delay();
         }
     }

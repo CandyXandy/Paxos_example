@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -278,12 +280,106 @@ public class MemberTest {
         }
     }
 
+    /**
+     * Tests the case where all M1-M9 have no delays set as per their Quirk profiles.
+     * We use three proposers in this test.
+     * This means that M2 and M3 may still go camping/ to the cafe etc. just that we
+     * will not delay the response of messages.
+     */
+    @Test
+    public void testPaxosNoDelaysWithQuirksThreeProposers() {
+        List<Member> members = getAllByzantineMembers();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        setNRandomToProposer(members, 3);
+        List<Future<?>> futures = new ArrayList<>();
+        // start all the members
+        for (Member member : members) {
+            futures.add(executor.submit(new Thread(() -> {
+                member.getMyQuirks().setDelayForm(0);
+                member.run();
+            })));
+        }
+        // wait for at least a majority of the members to finish
+        executor.shutdown();
+        waitForMajorityToFinish(members, futures);
+        // count up the votes for each member, but only check that the majority voted for the same president
+        countVotesMajority(members);
+        // if the test passes, we need to murder any remaining threads
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
+    }
+
+
+    /**
+     * Tests the case where all M1-M9 have small set as per their Quirk profiles.
+     * We use three proposers in this test.
+     */
+    @Test
+    public void testPaxosSmallDelaysThreeProposers() {
+        List<Member> members = getAllByzantineMembers();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        setNRandomToProposer(members, 3);
+        List<Future<?>> futures = new ArrayList<>();
+        // start all the members
+        for (Member member : members) {
+            futures.add(executor.submit(new Thread(() -> {
+                member.getMyQuirks().setDelayForm(1);
+                member.run();
+            })));
+        }
+        // wait for at least a majority of the members to finish
+        executor.shutdown();
+        waitForMajorityToFinish(members, futures);
+        // count up the votes for each member, but only check that the majority voted for the same president
+        countVotesMajority(members);
+        // if the test passes, we need to murder any remaining threads
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * Tests the case where all M1-M9 have medium delays set as per their Quirk profiles.
+     * We use three proposers in this test.
+     */
+    @Test
+    public void testPaxosMediumDelaysThreeProposers() {
+        List<Member> members = getAllByzantineMembers();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        setNRandomToProposer(members, 3);
+        List<Future<?>> futures = new ArrayList<>();
+        // start all the members
+        for (Member member : members) {
+            futures.add(executor.submit(new Thread(() -> {
+                member.getMyQuirks().setDelayForm(2);
+                member.run();
+            })));
+        }
+        // wait for at least a majority of the members to finish
+        executor.shutdown();
+        waitForMajorityToFinish(members, futures);
+        // count up the votes for each member, but only check that the majority voted for the same president
+        countVotesMajority(members);
+        // if the test passes, we need to murder any remaining threads
+        executor.shutdownNow();
+        while (!executor.isTerminated()) {
+            Thread.onSpinWait();
+        }
+    }
+
 
     /**
      * Tests the case where M2 or M3 propose and then go offline.
+     * All members are set to have max delays
      */
     @Test
     public void testThreeProposersM2M3_MaxDelays() {
+        // put in fine level logging so instructors can be convinced everything is working
+        Logger.getLogger("").setLevel(Level.FINE);
+        Logger.getLogger("").getHandlers()[0].setLevel(Level.FINE);
         List<Member> members = getAllByzantineMembers();
         ExecutorService executor = Executors.newCachedThreadPool();
         members.get(1).setProposer(true);
@@ -307,6 +403,9 @@ public class MemberTest {
         while (!executor.isTerminated()) {
             Thread.onSpinWait();
         }
+        // set back to normal for other tests.
+        Logger.getLogger("").setLevel(Level.INFO);
+        Logger.getLogger("").getHandlers()[0].setLevel(Level.INFO);
     }
 
 

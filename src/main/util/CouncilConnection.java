@@ -77,7 +77,7 @@ public class CouncilConnection {
                 // die quietly
             }
         }).start();
-        // wait for the message to be read or time out after 5 seconds
+        // wait for the message to be read or time out after 10 seconds
         while (message.get() == null && (System.currentTimeMillis() - startTime) < 10000) {
             Thread.onSpinWait();
             Thread.sleep(1000); // only check every second to avoid murdering the CPU
