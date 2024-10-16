@@ -187,7 +187,7 @@ public class MemberImpl implements Member {
         while (!executorService.isTerminated()) {
             Thread.onSpinWait(); // Wait for all threads to finish.
         }
-        if (promiseCount.get() > Members.values().length / 2) { // if we have a majority of promises
+        if (promiseCount.get() >= Members.values().length / 2) { // if we have a majority of promises
             // check if we have a majority of promises with the same value
             if (checkForCompletion(promiseValues)) return;
 
@@ -204,10 +204,11 @@ public class MemberImpl implements Member {
                     " in proposal number " + proposalNumber);
             acceptRequest(presidentVote); // proceed to the accept-request phase.
         } else {
+            // else, we didn't get enough promises, so we will try again with a higher proposal number.
             logger.info(this.getMemberNumber() + " only received " + promiseCount.get() + " promises for" +
                     " proposal number " + proposalNumber + ". Trying again with a higher proposal number.");
         }
-        // else, we didn't get enough promises, so we will try again with a higher proposal number.
+
     }
 
 
@@ -221,8 +222,8 @@ public class MemberImpl implements Member {
      * @return : boolean : true if we have a majority of promises with the same value, false otherwise.
      */
     private boolean checkForCompletion(ConcurrentHashMap<Members, Members> promiseValues) {
-        // if we got enough promises with a value to potentially form a majority
-        if (promiseValues.size() > Members.values().length / 2) {
+        // if we got enough promises with a value to potentially form a majority ( + 1 counting our own vote)
+        if (promiseValues.size() >= Members.values().length / 2) {
             // check if we have a majority of promises with the same value
             if (checkPromisesForMajority(promiseValues)) {
                 // log the president to the info level
@@ -280,7 +281,7 @@ public class MemberImpl implements Member {
         if (voteLeader == null) {
             return false; // only happens if no promises were received, which should never happen.
         }
-        if (maxVotes > Math.floor((double) Members.values().length / 2)) {
+        if (maxVotes >= Math.floor((double) Members.values().length / 2)) {
             // if the vote leader has a majority of votes, we can assume they are the president.
             president = voteLeader;
             return true;
@@ -502,7 +503,7 @@ public class MemberImpl implements Member {
         while (!executorService.isTerminated()) {
             Thread.onSpinWait(); // Wait for all threads to finish.
         }
-        if (acceptCount.get() > Math.floor((double) Members.values().length / 2)) {
+        if (acceptCount.get() >= Math.floor((double) Members.values().length / 2)) {
             logger.info(this.getMemberNumber() + " received enough accepts to decide on " +
                     toVoteFor + " for proposal number " + proposalNumber);
             // We have a majority, so we can decide.
