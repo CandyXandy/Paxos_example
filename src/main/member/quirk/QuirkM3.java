@@ -31,8 +31,8 @@ public class QuirkM3 implements Quirk {
                 TimeUnit.SECONDS.sleep(new Random().nextInt(2, 6));
                 break;
             case 3:
-                // sleep between 5 and 10 seconds
-                TimeUnit.SECONDS.sleep(new Random().nextInt(5, 11));
+                // sleep between 4 and 10 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(4, 11));
                 break;
         }
     }
@@ -43,7 +43,7 @@ public class QuirkM3 implements Quirk {
      * 0: No delay - no delay will be applied.
      * 1: Small delay - a delay of between 0 and 2 seconds
      * 2: Medium delay - a delay of between 2 and 5 seconds.
-     * 3: Large delay - a delay of between 5 and 10 seconds.
+     * 3: Large delay - a delay of between 4 and 10 seconds.
      *
      * @param delayForm : int : the delay form to set for M3.
      */

@@ -25,13 +25,13 @@ public class QuirkOther implements Quirk {
                 TimeUnit.SECONDS.sleep(new Random().nextInt(0, 3));
                 break;
             case 2:
-                // sleep between 2 and 5 seconds
-                TimeUnit.SECONDS.sleep(new Random().nextInt(2, 6));
+                // sleep between 1 and 5 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(1, 6));
 
                 break;
             case 3:
-                // sleep between 5 and 10 seconds
-                TimeUnit.SECONDS.sleep(new Random().nextInt(5, 11));
+                // sleep between 3 and 10 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(3, 11));
 
                 break;
         }
@@ -42,8 +42,8 @@ public class QuirkOther implements Quirk {
      * Sets the delay form for the member. The member has 4 different delay forms:
      * 0: No delay - no delay will be applied.
      * 1: Small delay - a delay of between 0 and 2 seconds.
-     * 2: Medium delay - a delay of between 2 and 5 seconds.
-     * 3: Large delay - a delay of between 5 and 10 seconds.
+     * 2: Medium delay - a delay of between 1 and 5 seconds.
+     * 3: Large delay - a delay of between 3 and 10 seconds.
      *
      * @param delayForm : int : the delay form to set for the member.
      */

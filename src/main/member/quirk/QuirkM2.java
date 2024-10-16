@@ -32,12 +32,12 @@ public class QuirkM2 implements Quirk {
                 TimeUnit.SECONDS.sleep(new Random().nextInt(1, 6));
                 break;
             case 2:
-                // sleep between 5 and 10 seconds
-                TimeUnit.SECONDS.sleep(new Random().nextInt(5, 11));
+                // sleep between 3 and 10 seconds
+                TimeUnit.SECONDS.sleep(new Random().nextInt(3, 11));
                 break;
             case 3:
-                // sleep between 10 and 15 seconds
-                TimeUnit.SECONDS.sleep(new Random().nextInt(10, 16));
+                // sleep between 5 and 15 seconds, effectively dropping the connection.
+                TimeUnit.SECONDS.sleep(new Random().nextInt(5, 16));
                 break;
         }
     }
@@ -46,8 +46,8 @@ public class QuirkM2 implements Quirk {
      * Sets the delay form for M2. M2 has 4 different delay forms:
      * 0: No delay - no delay will be applied.
      * 1: Small delay - a delay of between 0 and 5 seconds.
-     * 2: Large delay - a delay of between 5 and 10 seconds.
-     * 3: Unresponsive - a delay of between 10 and 15 seconds.
+     * 2: Large delay - a delay of between 3 and 10 seconds.
+     * 3: Unresponsive - a delay of between 5 and 15 seconds.
      *
      * @param delayForm : int : the delay form to set for M2.
      */
