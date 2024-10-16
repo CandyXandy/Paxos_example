@@ -49,7 +49,7 @@ public class CouncilConnectionTest {
      * Tests that a message can successfully read and a Message object is returned.
      */
     @Test
-    public void testReadMessage() throws IOException {
+    public void testReadMessage() throws IOException, InterruptedException {
         Socket mockedSocket = Mockito.mock(Socket.class);
         Mockito.when(mockedSocket.getInputStream()).thenReturn(new ByteArrayInputStream("MESSAGE 4005:1 _".getBytes()));
         Message message = CouncilConnection.readMessage(mockedSocket);

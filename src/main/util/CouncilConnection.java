@@ -65,7 +65,7 @@ public class CouncilConnection {
      * @return : Message : the message object created from the message.
      * @throws IOException : if the message could not be read from the BufferedReader.
      */
-    public static Message readMessage(Socket clientSocket) throws IOException {
+    public static Message readMessage(Socket clientSocket) throws IOException, InterruptedException {
         AtomicReference<String> message = new AtomicReference<>();
         BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         // read the message in a separate thread, so we can time out if it takes too long
@@ -80,6 +80,7 @@ public class CouncilConnection {
         // wait for the message to be read or time out after 5 seconds
         while (message.get() == null && (System.currentTimeMillis() - startTime) < 10000) {
             Thread.onSpinWait();
+            Thread.sleep(1000); // only check every second to avoid murdering the CPU
         }
         if (message.get() == null) {
             // if the message is still null, we timed out

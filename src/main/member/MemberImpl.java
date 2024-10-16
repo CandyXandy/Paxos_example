@@ -87,24 +87,18 @@ public class MemberImpl implements Member {
     @Override
     public void run() {
         try {
-            int retryCount = 0;
+            if (isProposer) {
+                // listen out for messages to see if we need to terminate.
+                Executors.newSingleThreadExecutor().submit(this::proposerListen);
+            }
             while (!finish) { // Unless we're absolutely confident everyone has decided on a president, keep going.
                 if (Thread.interrupted()) { // check if interrupted, and exit if so.
                     throw new InterruptedException();
                 }
                 if (isProposer) {
                     prepare();
-                    if (president == null) {
-                        if (retryCount >= 10) {
-                            // tried 10 times and still can't succeed, there might be too many proposers
-                            logger.info("Member " + this.getMemberNumber() + " has tried 10 times and failed to" +
-                                    " get enough votes, becoming an acceptor.");
-                            this.setProposer(false); // I will become an acceptor.
-                            retryCount = 0; // reset the retry count.
-                            continue;
-                        }
-                        retryCount++;
-                    }
+                    // wait for 2 seconds before trying again, otherwise we will murder my cpu
+                    Thread.sleep(2000);
                 } else {
                     // Acceptors do nothing until they receive a prepare message.
                     listenForMessages();
@@ -116,6 +110,51 @@ public class MemberImpl implements Member {
             // if we've been interrupted, we will just exit the algorithm.
         }
 
+    }
+
+
+    /**
+     * Listens for messages from other proposers, and if they receive a message to terminate, they will output
+     * the president to the console and set the finish flag to true. Otherwise, they will just kill the connection.
+     * This method will run until the finish flag is set to true, which will only happen when a proposer has received
+     * enough promises with the same value to form a majority.
+     * Needs to be run in a separate thread to avoid blocking the main thread.
+     * If an exception is thrown, we log the error, but we will propagate back to the run method where we will
+     * most likely shut down.
+     */
+    private void proposerListen() {
+        try (ServerSocket listenSocket = new ServerSocket(this.getMemberNumber().getPort());
+            ExecutorService executorService = Executors.newCachedThreadPool()
+        ) {
+            listenSocket.setSoTimeout(5000); // timeout after 5 seconds
+            while (!finish) {
+                try {
+                    Socket readSocket = listenSocket.accept();
+                    executorService.submit(() -> {
+                        try {
+                            Message message = CouncilConnection.readMessage(readSocket);
+                            if (message.message().startsWith("TERMINATE")) {
+                                this.president = message.value();
+                                this.finish = true;
+                            } else {
+                                // any other message, we just kill the connection.
+                                readSocket.close();
+                            }
+                        } catch (IOException | InterruptedException e) {
+                            // ignore the error, kill the connection.
+                        }
+                    });
+                } catch (SocketTimeoutException e) {
+                    if (finish) break;
+                }
+            }
+            // if we have a president, we can exit the algorithm.
+            System.out.println("Member " + this.getMemberNumber() + " says " + this.president + " is the president.");
+            this.finish = true;
+        } catch (IOException e) {
+            logger.fine("Member " + this.getMemberNumber() +
+                    "'s Listening Server shut down. " + e.getMessage());
+        }
     }
 
 
@@ -147,21 +186,8 @@ public class MemberImpl implements Member {
             Thread.onSpinWait(); // Wait for all threads to finish.
         }
         if (promiseCount.get() > Members.values().length / 2) { // if we have a majority of promises
-
-            // if we got enough promises with a value to potentially form a majority
-            if (promiseValues.size() > Members.values().length / 2) {
-                // check if we have a majority of promises with the same value
-                if (checkPromisesForMajority(promiseValues)) {
-                    // log the president to the info level
-                    logger.info("Member " + this.getMemberNumber() + " received a majority of" +
-                            " promises with value " + president + " for proposal number " + proposalNumber);
-                    // Output the president to the console.
-                    System.out.println("Member " + this.getMemberNumber() + " says " +
-                            this.president + " is the president.");
-                    this.finish = true; // we are confident the president has been decided.
-                    return; // we can exit the algorithm.
-                }
-            }
+            // check if we have a majority of promises with the same value
+            if (checkForCompletion(promiseValues)) return;
 
             logger.info("Member " + this.getMemberNumber() +
                     " received enough promises to proceed to ACCEPT REQUEST phase for proposal number " +
@@ -181,6 +207,50 @@ public class MemberImpl implements Member {
             acceptRequest(presidentVote); // proceed to the accept-request phase.
         }
         // else, we didn't get enough promises, so we will try again with a higher proposal number.
+    }
+
+
+    /**
+     * Checks if the promises received from the acceptors have enough of the SAME value to form a majority,
+     * and if they do, we know that the president was already decided. So we set the finish flag. We then
+     * attempt to connect to all other members of the council and send a terminate
+     * message to them, waiting as long as necessary to create a connection to them all.
+     *
+     * @param promiseValues  : ConcurrentHashMap<Members, Members> : the promises received from the acceptors.
+     * @return : boolean : true if we have a majority of promises with the same value, false otherwise.
+     */
+    private boolean checkForCompletion(ConcurrentHashMap<Members, Members> promiseValues) {
+        // if we got enough promises with a value to potentially form a majority
+        if (promiseValues.size() > Members.values().length / 2) {
+            // check if we have a majority of promises with the same value
+            if (checkPromisesForMajority(promiseValues)) {
+                // log the president to the info level
+                logger.info("Member " + this.getMemberNumber() + " received a majority of" +
+                        " promises with value " + president + " for proposal number " + proposalNumber);
+                this.finish = true; // we are confident the president has been decided.
+                ExecutorService executorService = Executors.newCachedThreadPool();
+                for (Members member : Members.values()) { // send terminate message to all other nodes
+                    if (member == this.getMemberNumber()) {
+                        continue; // skip myself
+                    }
+                    executorService.submit(() -> {
+                        try (Socket socket = new Socket(HOST, member.getPort())) {
+                            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                            out.println("TERMINATE " + this.getMemberNumber().getPort() + ":" + proposalNumber + " " +
+                                    Members.getMemberNumber(this.president));
+                        } catch (IOException e) {
+                            // ignore the error, we will just move on.
+                        }
+                    });
+                }
+                executorService.shutdown();
+                while (!executorService.isTerminated()) {
+                    Thread.onSpinWait(); // wait for all threads to finish.
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
 
@@ -260,7 +330,7 @@ public class MemberImpl implements Member {
                     // I will ignore this message and move on.
                 }
             }
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             // not a big deal, log it and move on.
             logger.fine("Connection error to member " + member + ". " + e.getMessage());
         }
@@ -300,13 +370,10 @@ public class MemberImpl implements Member {
     /**
      * Sets up a server socket to listen for messages from other members of the council. When a message is received,
      * a new thread is created to handle the message.
-     * The server socket has a timeout of between 0 and 30 seconds, so if we haven't received a message in a long time,
-     * we can assume that the proposers have failed, and one of the acceptors will have to take over.
-     * We randomise the timeout on this so that all acceptors don't suddenly all become proposers at the same time,
-     * making progress impossible.
-     * If an exception is thrown, we log the error, but we will propagate back to the run method where we will
-     * check if the president has been decided, if not we will end up back here and will begin listening for messages
-     * again.
+     * The server socket has a timeout of 5 seconds, to check if we have finished and to avoid blocking
+     * forever waiting for a message. If an exception is thrown, we log the error, but we will propagate
+     * back to the run method where we will check if the president has been decided, if not we will
+     * end up back here and will begin listening for messages again.
      */
     @Override
     public void listenForMessages() throws InterruptedException {
@@ -314,9 +381,8 @@ public class MemberImpl implements Member {
                 ServerSocket listenSocket = new ServerSocket(this.getMemberNumber().getPort());
                 ExecutorService executorService = Executors.newCachedThreadPool()
         ) {
-            int attemptsWithoutMessage = 0; // Keep track of how many times we have not received a message.
-            listenSocket.setSoTimeout(new Random().nextInt(5, 16) * 1000); // timeout between 5 and 15 sec
-            while (attemptsWithoutMessage <= 3) { // If we haven't received a message in 3 attempts, we will shut down.
+            listenSocket.setSoTimeout(5000); // check for finish every 5 seconds
+            while (!finish) {
                 try {
                     Socket clientSocket = listenSocket.accept(); // Wait for a connection.
                     if (myQuirks != null) { // if in quirk mode
@@ -326,22 +392,12 @@ public class MemberImpl implements Member {
                         try {
                             handleMessages(clientSocket);
                         } catch (InterruptedException _) {
-                            //
+                            // die quietly
                         }
                     });
-                    attemptsWithoutMessage = 0; // Reset the number of attempts if we receive a message.
                 } catch (SocketTimeoutException e) {
-                    attemptsWithoutMessage++; // increment the number of attempts on timeout.
+                    if (finish) break;
                 }
-            }
-            // check if there is a president
-            if (this.president == null) {
-                /* if we haven't received a message in 30 seconds, and we don't have a president, we can assume
-                    that the proposers have failed, one of the acceptors will have to take over. */
-                logger.info("Member " + this.getMemberNumber() + " has not received a message in a long time, " +
-                        "assuming proposer failure, and taking over.");
-                this.setProposer(true); // I will take over as a proposer.
-                return;
             }
             // if we have a president, we can exit the algorithm.
             System.out.println("Member " + this.getMemberNumber() + " says " + this.president + " is the president.");
@@ -388,6 +444,11 @@ public class MemberImpl implements Member {
                         logger.fine("Received a decide message with a proposal number" +
                                 " less than the current proposal number.");
                     }
+                    break;
+                case "TERMINATE":
+                    // we got the order to terminate, so we will output the president and exit the algorithm.
+                    this.finish = true;
+                    this.president = message.value(); // set the president, in case we missed the majority.
                     break;
                 default:
                     logger.fine("Unknown message type received: " + message.message());
@@ -486,7 +547,7 @@ public class MemberImpl implements Member {
             } else {
                 logger.fine("Received a rejection from " + member + " for the accept request.");
             }
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             logger.fine("Member " + this.getMemberNumber() +
                     "experienced a connection error to member " + member + ". " + e.getMessage());
         }
