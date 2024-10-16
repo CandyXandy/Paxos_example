@@ -14,11 +14,10 @@ The implementation of this algorithm is done primarily in the member package. Th
 package contains an interface as well as a class that implements the interface.
 We have two roles within our implementation of the algorithm. Acceptors and proposer.
 Proposer make proposals to all the other nodes, and acceptors vote on the proposals.
-However, the roles are dynamic, if any acceptor hasn't received a message in a long
-time, it will become a proposer.
-To avoid the situation where too many proposers exist to form a majority, proposers
-will become acceptors if they have made 10 failed proposals.
-
+Once a value has been decided, and the value was committed to by a majority of the nodes,
+a proposer will eventually receive a set of promises from the acceptors with the decided value,
+forming a majority and the proposer will then broadcast a 'terminate' message to all nodes with
+the decided value, and the process will terminate.
 
 To simulate the unreliable nature of the council members, I have implemented a
 quirk package that exists within the member package. This package contains a Quirk 
@@ -37,7 +36,8 @@ They test the different scenarios as described in the assignment description.
 **Please be aware that a single run of the paxos algorithm may take as long as 10 minutes.
 Especially when a node is behaving arbitrarily and repeatedly drops connection to other nodes**
 Please be patient! Even if it seems like nothing is happening, the nodes are still running the
-algorithm, albeit arbitrarily most likely.
+algorithm. I guarantee that the algorithm will eventually terminate, and the president will be
+decided. I have seen a run take as long as 25 minutes in an incredibly unlucky situation 
 
 
 ## Compiling and Running
