@@ -111,6 +111,7 @@ public class MemberImpl implements Member {
                 }
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // re-set the flag
             logger.fine("Member " + this.getMemberNumber() + " has been interrupted. " + e.getMessage());
             // if we've been interrupted, we will just exit the algorithm.
         }

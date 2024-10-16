@@ -78,7 +78,7 @@ public class CouncilConnection {
             }
         }).start();
         // wait for the message to be read or time out after 5 seconds
-        while (message.get() == null && (System.currentTimeMillis() - startTime) < 5000) {
+        while (message.get() == null && (System.currentTimeMillis() - startTime) < 10000) {
             Thread.onSpinWait();
         }
         if (message.get() == null) {
