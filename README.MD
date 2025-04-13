@@ -1,10 +1,9 @@
 # Distributed Systems
-## Assignment 3
 ### Paxos Algorithm
-#### Alexander Robertson - a1884188
+#### Alexander Robertson
 
 ## Introduction
-This assignment is an implementation of the Paxos algorithm. We use the Paxos algorithm
+This is an implementation of the Paxos algorithm. We use the Paxos algorithm
 in this case to elect a president for the Adelaide Suburbs Council. The council is made up
 of 9 members, any of which can be elected president.
 However, the council members are prone to acting arbitrarily and may not be reliable.
@@ -22,7 +21,7 @@ the decided value, and the process will terminate.
 To simulate the unreliable nature of the council members, I have implemented a
 quirk package that exists within the member package. This package contains a Quirk 
 interface and 4 classes that implement it.
-The classes represent the different profiles as specified in the assignment description.
+The classes represent a number of different profiles.
 
 
 ## Testing
